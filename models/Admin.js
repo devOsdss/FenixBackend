@@ -133,19 +133,32 @@ adminSchema.methods.getSafeData = function() {
 
 // Pre-save middleware for password hashing and validation
 adminSchema.pre('save', async function(next) {
+  console.log('🔧 Pre-save middleware triggered for admin:', this.login);
+  console.log('🔧 Modified fields:', this.modifiedPaths());
+  
   // Trim login to remove extra spaces
   if (this.isModified('login')) {
     this.login = this.login.trim();
+    console.log('🔧 Login trimmed:', this.login);
   }
   
   // Hash password if it's modified
   if (this.isModified('password')) {
+    console.log('🔧 Password is modified, hashing...');
+    console.log('🔧 Raw password length:', this.password ? this.password.length : 'null');
     try {
       const saltRounds = 10;
+      const oldPassword = this.password;
       this.password = await bcrypt.hash(this.password, saltRounds);
+      console.log('🔧 Password hashed successfully');
+      console.log('🔧 Old password (first 10 chars):', oldPassword ? oldPassword.substring(0, 10) + '...' : 'null');
+      console.log('🔧 New hash (first 20 chars):', this.password ? this.password.substring(0, 20) + '...' : 'null');
     } catch (error) {
+      console.error('🔧 Password hashing failed:', error);
       return next(error);
     }
+  } else {
+    console.log('🔧 Password not modified, skipping hash');
   }
   
   next();

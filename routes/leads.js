@@ -53,6 +53,32 @@ function createPhoneSearchConditions(search) {
   return searchConditions;
 }
 
+// Get all unique statuses from leads
+router.get('/statuses', authenticateToken, async (req, res) => {
+  try {
+    const statuses = await Lead.distinct('status', { 
+      hidden: { $ne: true }
+    });
+    
+    // Filter out empty strings and sort alphabetically
+    const filteredStatuses = statuses
+      .filter(status => status && status.trim() !== '')
+      .sort();
+    
+    res.json({
+      success: true,
+      data: filteredStatuses
+    });
+  } catch (error) {
+    console.error('Error fetching statuses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Помилка при отриманні статусів',
+      error: error.message
+    });
+  }
+});
+
 // Get all unique UTM sources from leads
 router.get('/utm-sources', authenticateToken, async (req, res) => {
   try {
@@ -136,25 +162,24 @@ router.get('/', authenticateToken, async (req, res) => {
     } else if (status) {
       if (Array.isArray(status)) {
         filter.status = { $in: status };
+        console.log('🔍 Status filter (array):', status);
       } else if (typeof status === 'string' && status.includes(',')) {
-        filter.status = { $in: status.split(',') };
+        const statusArray = status.split(',');
+        filter.status = { $in: statusArray };
+        console.log('🔍 Status filter (comma-separated):', statusArray);
       } else {
         filter.status = status;
+        console.log('🔍 Status filter (single):', status);
       }
     }
-       console.log("ASSIGNED", assigned)
-    // 🔹 універсальна обробка assigned (only if no role-based filtering applied)
-    if (assigned && !filter.assigned) {
-      let ids = [];
+    if (assigned) {
       if (Array.isArray(assigned)) {
-        ids = assigned;
+        filter.assigned = { $in: assigned };
       } else if (typeof assigned === 'string' && assigned.includes(',')) {
-        ids = assigned.split(',');
+        filter.assigned = { $in: assigned.split(',') };
       } else {
-        ids = [assigned];
+        filter.assigned = assigned;
       }
-      // Lead.assigned is stored as String, match by string values
-      filter.assigned = { $in: ids };
     }
 
     if (search) {
@@ -162,7 +187,8 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     if (department) {
-      filter.department = parseInt(department, 10);
+      filter.department = department;
+      console.log("Department filter applied:", department);
     }
 
     if (sourceDescription) {
@@ -186,19 +212,39 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    console.log('📋 Final filter object:', JSON.stringify(filter, null, 2));
     
-    const sortObj = {};
-    sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
-    const leads = await Lead.find(filter)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
+    // Get total count for pagination
     const total = await Lead.countDocuments(filter);
+    console.log('📊 Total leads matching filter:', total);
+    
+    // If assigned filter is set, let's check what leads exist with those IDs
+    if (filter.assigned) {
+      let assignedQuery = {};
+      if (filter.assigned.$in) {
+        assignedQuery = { assigned: { $in: filter.assigned.$in } };
+      } else {
+        assignedQuery = { assigned: filter.assigned };
+      }
+      const assignedCheck = await Lead.find(assignedQuery, 'name assigned').limit(5);
+      console.log('🔍 Sample leads with assigned filter:', assignedCheck.map(l => ({ name: l.name, assigned: l.assigned })));
+      
+      // Also check total count for assigned filter alone
+      const assignedTotal = await Lead.countDocuments(assignedQuery);
+      console.log('🔍 Total leads with this assigned filter:', assignedTotal);
+    }
+    
+    // Get leads with pagination
+    const leads = await Lead.find(filter)
+      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit));
+      
+    console.log('👥 Found leads:', leads.length);
     
     let statusCounts = {};
-    if (status && Array.isArray(status)) {
+    if (status && (Array.isArray(status) || (typeof status === 'string' && status.includes(',')))) {
+      const statusArray = Array.isArray(status) ? status : status.split(',');
       const statusCountsAggregation = await Lead.aggregate([
         { $match: filter },
         { $group: { _id: '$status', count: { $sum: 1 } } }
@@ -208,7 +254,7 @@ router.get('/', authenticateToken, async (req, res) => {
         statusCounts[item._id] = item.count;
       });
       
-      status.forEach(s => {
+      statusArray.forEach(s => {
         if (!statusCounts[s]) {
           statusCounts[s] = 0;
         }
@@ -642,8 +688,8 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
       filter.hidden = hidden === 'true';
     }
 
-    // Role-based filtering (same as main endpoint)
-    if (userRole && userId) {
+    // Role-based filtering (only apply if no explicit assigned filter is provided)
+    if (userRole && userId && !assigned) {
       if (userRole === 'Manager' || userRole === 'Reten') {
         // Manager/Reten can only see leads assigned to them
         filter.assigned = userId;

@@ -161,6 +161,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
 router.patch('/:id/password', authenticateToken, async (req, res) => {
   try {
     const { password } = req.body;
+    console.log('🔐 Password update request for admin ID:', req.params.id);
+    console.log('🔐 New password length:', password ? password.length : 'undefined');
     
     if (!password) {
       return res.status(400).json({
@@ -178,13 +180,34 @@ router.patch('/:id/password', authenticateToken, async (req, res) => {
       });
     }
     
-    // TODO: Hash password with bcrypt before saving
+    console.log('🔐 Found admin:', admin.login);
+    console.log('🔐 Current password hash (first 20 chars):', admin.password ? admin.password.substring(0, 20) + '...' : 'null');
+    
+    // Set password and mark as modified to trigger pre-save hashing
+    const oldPasswordHash = admin.password;
     admin.password = password;
+    admin.markModified('password');
+    
+    console.log('🔐 Password field marked as modified:', admin.isModified('password'));
+    console.log('🔐 About to save admin...');
+    
     await admin.save();
+    
+    // Verify the password was actually updated
+    const updatedAdmin = await Admin.findById(req.params.id);
+    const passwordChanged = updatedAdmin.password !== oldPasswordHash;
+    
+    console.log('🔐 Password actually changed in DB:', passwordChanged);
+    console.log('🔐 New password hash (first 20 chars):', updatedAdmin.password ? updatedAdmin.password.substring(0, 20) + '...' : 'null');
     
     res.json({
       success: true,
-      message: 'Пароль успешно обновлен'
+      message: 'Пароль успешно обновлен',
+      debug: {
+        passwordChanged,
+        oldHashPreview: oldPasswordHash ? oldPasswordHash.substring(0, 20) + '...' : 'null',
+        newHashPreview: updatedAdmin.password ? updatedAdmin.password.substring(0, 20) + '...' : 'null'
+      }
     });
 
   } catch (error) {
