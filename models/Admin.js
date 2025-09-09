@@ -127,7 +127,8 @@ adminSchema.methods.getSafeData = function() {
     create_ad: this.create_ad,
     responsible: this.responsible,
     department: this.department,
-    bitrixId: this.bitrixId
+    bitrixId: this.bitrixId,
+    team: this.team
   };
 };
 

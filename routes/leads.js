@@ -124,9 +124,10 @@ router.get('/', authenticateToken, async (req, res) => {
       sortBy = 'dateCreate',
       sortOrder = 'desc',
       userRole,
+      userTeam,
       userId
     } = req.query;
-
+     console.log("userTeam", userTeam)
     const filter = {};
     
     if (hidden !== undefined) {
@@ -139,15 +140,13 @@ router.get('/', authenticateToken, async (req, res) => {
         // Manager/Reten can only see leads assigned to them
         filter.assigned = userId;
       } else if (userRole === 'TeamLead') {
-        // TeamLead can see leads assigned to their team members
         const Admin = require('../models/Admin');
-        const teamMembers = await Admin.find({ responsible: userId }, '_id');
+        const teamMembers = await Admin.find({ team: userTeam }, '_id');
         const teamMemberIds = teamMembers.map(admin => admin._id.toString());
-        // Include TeamLead's own leads and their team members' leads
-        teamMemberIds.push(userId);
+        teamMemberIds.push(userTeam);
+        console.log("teamMemberIds", teamMemberIds)
         filter.assigned = { $in: teamMemberIds };
       }
-      // Admin role has no additional filtering - can see all leads
     }
     
     // Advanced status handling: statusMode + statuses
@@ -677,7 +676,8 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
       dateFrom,
       dateTo,
       userRole,
-      userId
+      userId,
+      userTeam
     } = req.query;
 
     // Build filter object (same logic as main leads endpoint)
@@ -696,7 +696,7 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
       } else if (userRole === 'TeamLead') {
         // TeamLead can see leads assigned to their team members
         const Admin = require('../models/Admin');
-        const teamMembers = await Admin.find({ responsible: userId }, '_id');
+        const teamMembers = await Admin.find({ team: userTeam }, '_id');
         const teamMemberIds = teamMembers.map(admin => admin._id.toString());
         // Include TeamLead's own leads and their team members' leads
         teamMemberIds.push(userId);
