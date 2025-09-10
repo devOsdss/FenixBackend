@@ -68,7 +68,7 @@ const leadSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     },
-    author: {
+    adminId: {
       type: String,
       default: null
     }
@@ -160,7 +160,7 @@ leadSchema.statics.getActiveLeads = function() {
 };
 
 // Instance methods
-leadSchema.methods.addNote = function(noteText, author = null, photo = null) {
+leadSchema.methods.addNote = function(noteText, adminId = null, photo = null) {
   // Require either text or photo
   if (!noteText && !photo) {
     throw new Error('Either text or photo is required for a note');
@@ -170,7 +170,7 @@ leadSchema.methods.addNote = function(noteText, author = null, photo = null) {
     text: noteText || '',
     photo: photo,
     createdAt: new Date(),
-    author: author
+    adminId: adminId
   });
   this.updatedByNote = noteText || 'Додано фото';
   this.updatedAt = new Date();

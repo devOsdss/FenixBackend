@@ -528,7 +528,7 @@ router.patch('/:id/assign', authenticateToken, async (req, res) => {
 // Add note to lead
 router.post('/:id/notes', authenticateToken, async (req, res) => {
   try {
-    const { text, note, photo, author } = req.body;
+    const { text, note, photo, adminId } = req.body;
     const noteText = text || note; // Support both 'text' and 'note' parameters
     // Require either note text or photo
     if (!noteText && !photo) {
@@ -547,7 +547,7 @@ router.post('/:id/notes', authenticateToken, async (req, res) => {
       });
     }
     
-    await lead.addNote(noteText, author, photo);
+    await lead.addNote(noteText, adminId, photo);
    
     
     res.json({
@@ -823,9 +823,10 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
 
 // Add note to lead
 router.post('/:id/notes', authenticateToken, async (req, res) => {
+  
   try {
-    const { note, photo, author } = req.body;
-    
+    const { note, photo, adminId } = req.body;
+    console.log("reqBODY",req.body);
     // Validate that either note or photo is provided
     if (!note && !photo) {
       return res.status(400).json({
@@ -850,7 +851,7 @@ router.post('/:id/notes', authenticateToken, async (req, res) => {
       text: note || '',
       photo: photo,
       createdAt: new Date(),
-      author: author
+      adminId: adminId
     };
     
     
@@ -863,7 +864,7 @@ router.post('/:id/notes', authenticateToken, async (req, res) => {
     await lead.save();
     
     // Log comment addition to history
-    const adminId = req.body.adminId || req.headers['x-admin-id'] || author;
+   
     if (adminId) {
       await logCommentAdded(lead._id, adminId, note || '', lead.name, photo);
     } else {
@@ -899,7 +900,7 @@ router.post('/:id/notes', authenticateToken, async (req, res) => {
 // Edit note by index
 router.put('/:id/notes/:noteIndex', authenticateToken, async (req, res) => {
   try {
-    const { text, note, photo, author } = req.body;
+    const { text, note, photo, adminId } = req.body;
     const noteText = text || note; // Support both 'text' and 'note' parameters
     const noteIndex = parseInt(req.params.noteIndex);
     
@@ -936,7 +937,6 @@ router.put('/:id/notes/:noteIndex', authenticateToken, async (req, res) => {
     const LeadsHistory = require('../models/LeadsHistory');
     const User = require('../models/User');
     const firstAdmin = await User.findOne({ role: 'admin' });
-    const adminId = firstAdmin ? firstAdmin._id : null;
     
     if (adminId) {
       await LeadsHistory.createHistoryEntry({
