@@ -925,9 +925,9 @@ router.put('/:id/notes/:noteIndex', authenticateToken, async (req, res) => {
     if (photo !== undefined) {
       lead.notes[noteIndex].photo = photo;
     }
-    if (author !== undefined) {
-      lead.notes[noteIndex].author = author;
-    }
+    // if (author !== undefined) {
+    //   lead.notes[noteIndex].author = author;
+    // }
     lead.notes[noteIndex].updatedAt = new Date();
     
     lead.updatedAt = new Date();
