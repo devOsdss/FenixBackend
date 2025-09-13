@@ -7,15 +7,6 @@ function normalizePhone(phone) {
 const processTildaWebhook = async (req, res) => {
     try {
         console.log('Received webhook from Tilda:', req.body);
-
-        if (process.env.TILDA_TRANTOKEN) {
-            const receivedToken = req.body.TRANTOKEN || req.query.trantoken;
-            if (receivedToken !== process.env.TILDA_TRANTOKEN) {
-                console.error('Invalid trantoken received');
-                return res.status(403).json({ message: 'Invalid trantoken' });
-            }
-        }
-
         const formData = req.body;
         console.log("RDRDRDDRDD:", formData)
         let sourceDescription = 'Unknown Source';
