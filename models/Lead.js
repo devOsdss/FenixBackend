@@ -9,7 +9,7 @@ const leadSchema = new mongoose.Schema({
   
   phone: {
     type: String,
-    required: [true, 'Телефон обязателен'],
+    required: false,
     trim: true
   },
   
