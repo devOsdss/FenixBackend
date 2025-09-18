@@ -8,7 +8,7 @@ const processTildaWebhook = async (req, res) => {
     try {
         console.log('Received webhook from Tilda:', req.body);
         const formData = req.body;
-        console.log("RDRDRDDRDD:", formData)
+        console.log("RDRDRDDRDD:", req)
         let sourceDescription = 'Unknown Source';
 
         try {
