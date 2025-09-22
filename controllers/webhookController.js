@@ -29,10 +29,14 @@ const handleTildaWebhook = async (req, res) => {
             try {
                 const url = new URL(formData.source);
                 extractedDomain = url.hostname;
+                console.log('Raw hostname:', url.hostname);
                 console.log('Extracted domain from source:', extractedDomain);
             } catch (error) {
                 console.log('Failed to parse source URL:', formData.source);
-                extractedDomain = formData.source; // Якщо не вдалося парсити, використовуємо оригінальне значення
+                // Якщо не вдалося парсити як URL, спробуємо витягти домен вручну
+                const match = formData.source.match(/(?:https?:\/\/)?(?:www\.)?([^\/\?]+)/);
+                extractedDomain = match ? match[1] : formData.source;
+                console.log('Manual domain extraction result:', extractedDomain);
             }
         }
         console.log('Final utm_source value:', extractedDomain);
