@@ -5,35 +5,35 @@ const handleTildaWebhook = async (req, res) => {
     console.log('Request received at:', new Date().toISOString());
     console.log('Request URL:', req.originalUrl);
     console.log('Request Method:', req.method);
-    
+
     try {
         console.log('\nRequest Headers:', JSON.stringify(req.headers, null, 2));
         console.log('\nRequest Query:', JSON.stringify(req.query, null, 2));
         console.log('\nRequest Body:', JSON.stringify(req.body, null, 2));
-        
+
         const formData = req.body;
-         console.log("RRRRRRRRRRRR:", formData)
-      
+        console.log("RRRRRRRRRRRR:", formData);
 
-        // Нормалізація номера телефону (видалення всіх символів крім цифр)
-        const normalizedPhone = formData.phone.replace(/\D/g, '');
-        console.log('Normalized phone:', normalizedPhone);
+        // Безпечна нормалізація номера телефону
+        const normalizedPhone = formData.phone ? formData.phone.replace(/\D/g, '') : '';
+        console.log('Normalized phone:', normalizedPhone || 'No phone provided');
 
-        // Перевірка чи існує лід з таким номером
-        const existingLead = await Lead.findOne({ phone: formData.phone });
+        // Перевірка чи існує лід з таким номером (якщо номер є)
+        let existingLead = null;
+        if (normalizedPhone) {
+            existingLead = await Lead.findOne({ phone: normalizedPhone });
+        }
         console.log('Existing lead:', existingLead ? 'Found' : 'Not found');
-         console.log(`Phone number: ${formData.phone}`)
+
         // Визначення статусу
         const status = existingLead ? 'DUPLICATE' : 'UC_HSS56X';
-
-        
         console.log('Assigned status:', status);
 
         // Створення нового ліда
         const lead = new Lead({
             name: formData.name || 'No Name',
-            phone: normalizedPhone || ' No Phone',
-            email: formData.email || ' No Email',
+            phone: normalizedPhone || 'No Phone',
+            email: formData.email || 'No Email',
             status: status || 'NEW',
             sourceDescription: formData.source || req.headers.referer || 'No Source',
             utm_source: formData.utm_source || 'No UTM Source',
@@ -42,7 +42,7 @@ const handleTildaWebhook = async (req, res) => {
             utm_content: formData.utm_content || 'No UTM Content',
             utm_term: formData.utm_term || 'No UTM Term',
             dateCreate: new Date(),
-            hidden:false
+            hidden: false
         });
 
         await lead.save();
@@ -63,7 +63,7 @@ const handleTildaWebhook = async (req, res) => {
         }
 
         console.log('=== Tilda Webhook Completed Successfully ===\n');
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: 'Lead created successfully',
             status: status,
             leadId: lead._id
@@ -73,8 +73,8 @@ const handleTildaWebhook = async (req, res) => {
         console.error('Error:', error);
         console.error('Stack:', error.stack);
         console.error('=== End Error ===\n');
-        
-        return res.status(500).json({ 
+
+        return res.status(500).json({
             message: 'Internal server error',
             error: error.message
         });
