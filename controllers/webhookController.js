@@ -14,11 +14,16 @@ const handleTildaWebhook = async (req, res) => {
         const formData = req.body;
         console.log("RRRRRRRRRRRR:", formData);
 
-        // Безпечна нормалізація номера телефону
-        const normalizedPhone = formData.phone ? formData.phone.replace(/\D/g, '') : '';
+        // Підтримка різного регістру полів
+        const phoneField = formData.phone || formData.Phone || '';
+        const nameField = formData.name || formData.Name || 'No Name';
+        const emailField = formData.email || formData.Email || 'No Email';
+
+        // Нормалізація номера телефону
+        const normalizedPhone = phoneField ? phoneField.replace(/\D/g, '') : '';
         console.log('Normalized phone:', normalizedPhone || 'No phone provided');
 
-        // Перевірка чи існує лід з таким номером (якщо номер є)
+        // Перевірка, чи існує лід з таким номером (якщо номер є)
         let existingLead = null;
         if (normalizedPhone) {
             existingLead = await Lead.findOne({ phone: normalizedPhone });
@@ -31,10 +36,10 @@ const handleTildaWebhook = async (req, res) => {
 
         // Створення нового ліда
         const lead = new Lead({
-            name: formData.name || 'No Name',
+            name: nameField,
             phone: normalizedPhone || 'No Phone',
-            email: formData.email || 'No Email',
-            status: status || 'NEW',
+            email: emailField,
+            status: status,
             sourceDescription: formData.source || req.headers.referer || 'No Source',
             utm_source: formData.utm_source || 'No UTM Source',
             utm_medium: formData.utm_medium || 'No UTM Medium',
@@ -68,6 +73,7 @@ const handleTildaWebhook = async (req, res) => {
             status: status,
             leadId: lead._id
         });
+
     } catch (error) {
         console.error('\n=== Tilda Webhook Error ===');
         console.error('Error:', error);
