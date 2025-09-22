@@ -5,72 +5,48 @@ const handleTildaWebhook = async (req, res) => {
     console.log('Request received at:', new Date().toISOString());
     console.log('Request URL:', req.originalUrl);
     console.log('Request Method:', req.method);
-
+    
     try {
         console.log('\nRequest Headers:', JSON.stringify(req.headers, null, 2));
         console.log('\nRequest Query:', JSON.stringify(req.query, null, 2));
         console.log('\nRequest Body:', JSON.stringify(req.body, null, 2));
-
-        const formData = req.body;
-        console.log("RRRRRRRRRRRR:", formData);
-
-        // Підтримка різного регістру полів
-        const phoneField = formData.phone || formData.Phone || '';
-        const nameField = formData.name || formData.Name || 'No Name';
-        const emailField = formData.email || formData.Email || 'No Email';
-
-        // Нормалізація номера телефону
-        const normalizedPhone = phoneField ? phoneField.replace(/\D/g, '') : '';
-        console.log('Normalized phone:', normalizedPhone || 'No phone provided');
-
-        // Витягування домену з formData.source або referer заголовка
-        let extractedDomain = 'No Source';
-        const sourceUrl = formData.source || req.headers.referer || req.headers.referrer;
         
-        if (sourceUrl) {
-            try {
-                const url = new URL(sourceUrl);
-                extractedDomain = url.hostname;
-                console.log('Source URL:', sourceUrl);
-                console.log('Raw hostname:', url.hostname);
-                console.log('Extracted domain from source:', extractedDomain);
-            } catch (error) {
-                console.log('Failed to parse source URL:', sourceUrl);
-                // Якщо не вдалося парсити як URL, спробуємо витягти домен вручну
-                const match = sourceUrl.match(/(?:https?:\/\/)?(?:www\.)?([^\/\?]+)/);
-                extractedDomain = match ? match[1] : sourceUrl;
-                console.log('Manual domain extraction result:', extractedDomain);
-            }
-        } else {
-            console.log('No source URL found in formData.source or referer header');
+        const formData = req.body;
+         console.log("RRRRRRRRRRRR:", formData)
+        // Валідація обов'язкових полів
+        if (!formData.phone) {
+            console.log('Error: Phone number is missing');
+            return res.status(400).json({ message: 'Phone number is required' });
         }
-        console.log('Final sourceDescription value:', extractedDomain);
 
-        // Перевірка, чи існує лід з таким номером (якщо номер є)
-        let existingLead = null;
-        if (normalizedPhone) {
-            existingLead = await Lead.findOne({ phone: normalizedPhone });
-        }
+        // Нормалізація номера телефону (видалення всіх символів крім цифр)
+        const normalizedPhone = formData.phone.replace(/\D/g, '');
+        console.log('Normalized phone:', normalizedPhone);
+
+        // Перевірка чи існує лід з таким номером
+        const existingLead = await Lead.findOne({ phone: formData.phone });
         console.log('Existing lead:', existingLead ? 'Found' : 'Not found');
-
+         console.log(`Phone number: ${formData.phone}`)
         // Визначення статусу
         const status = existingLead ? 'DUPLICATE' : 'UC_HSS56X';
+
+        
         console.log('Assigned status:', status);
 
         // Створення нового ліда
         const lead = new Lead({
-            name: nameField,
-            phone: normalizedPhone || 'No Phone',
-            email: emailField,
-            status: status,
-            sourceDescription: extractedDomain,
+            name: formData.name || 'No Name',
+            phone: normalizedPhone || ' No Phone',
+            email: formData.email || ' No Email',
+            status: status || 'NEW',
+            sourceDescription: formData.source || req.headers.referer || 'No Source',
             utm_source: formData.utm_source || 'No UTM Source',
             utm_medium: formData.utm_medium || 'No UTM Medium',
             utm_campaign: formData.utm_campaign || 'No UTM Campaign',
             utm_content: formData.utm_content || 'No UTM Content',
             utm_term: formData.utm_term || 'No UTM Term',
             dateCreate: new Date(),
-            hidden: false
+            hidden:false
         });
 
         await lead.save();
@@ -91,7 +67,7 @@ const handleTildaWebhook = async (req, res) => {
         }
 
         console.log('=== Tilda Webhook Completed Successfully ===\n');
-        return res.status(200).json({
+        return res.status(200).json({ 
             message: 'Lead created successfully',
             status: status,
             leadId: lead._id
@@ -102,8 +78,8 @@ const handleTildaWebhook = async (req, res) => {
         console.error('Error:', error);
         console.error('Stack:', error.stack);
         console.error('=== End Error ===\n');
-
-        return res.status(500).json({
+        
+        return res.status(500).json({ 
             message: 'Internal server error',
             error: error.message
         });
@@ -111,5 +87,6 @@ const handleTildaWebhook = async (req, res) => {
 };
 
 module.exports = {
+    handleTildaWebhook
     handleTildaWebhook
 };
