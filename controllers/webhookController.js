@@ -13,11 +13,7 @@ const handleTildaWebhook = async (req, res) => {
         
         const formData = req.body;
          console.log("RRRRRRRRRRRR:", formData)
-        // Валідація обов'язкових полів
-        if (!formData.phone) {
-            console.log('Error: Phone number is missing');
-            return res.status(400).json({ message: 'Phone number is required' });
-        }
+      
 
         // Нормалізація номера телефону (видалення всіх символів крім цифр)
         const normalizedPhone = formData.phone.replace(/\D/g, '');
