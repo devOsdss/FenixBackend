@@ -16,13 +16,6 @@ const leadSchema = new mongoose.Schema({
   email: {
     type: String,
     default: null,
-    validate: {
-      validator: function(v) {
-        // Allow null, empty string, "No Email", or valid email format
-        return !v || v === 'No Email' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-      },
-      message: 'Некорректный формат email'
-    }
   },
   
   assigned: {

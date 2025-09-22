@@ -29,12 +29,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     sparse: true, // Allow multiple null values
     lowercase: true,
-    validate: {
-      validator: function(v) {
-        return !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-      },
-      message: 'Некорректный формат email'
-    }
   },
   
   // User role

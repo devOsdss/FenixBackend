@@ -1,84 +1,90 @@
 const Lead = require('../models/Lead');
 
-function normalizePhone(phone) {
-    return phone.replace(/\D/g, ''); // Видаляє всі символи, крім цифр
-}
-
-const processTildaWebhook = async (req, res) => {
+const handleTildaWebhook = async (req, res) => {
+    console.log('\n=== Tilda Webhook Started ===');
+    console.log('Request received at:', new Date().toISOString());
+    console.log('Request URL:', req.originalUrl);
+    console.log('Request Method:', req.method);
+    
     try {
-        console.log('Received webhook from Tilda:', req.body);
-        const formData = req.body;
-        console.log("RDRDRDDRDD:", req)
-        let sourceDescription = 'Unknown Source';
-
-        try {
-            const referer = req.headers['referer'];
-            if (referer) {
-                const urlObject = new URL(referer);
-                sourceDescription = urlObject.hostname;
-            }
-        } catch (urlError) {
-            console.warn('⚠️ Не вдалося розпарсити referer:', req.headers['referer']);
-        }
-
-        console.log('formData:', formData);
-      
-        console.log('Source description:', sourceDescription);
-        const leadData = {
-            name: formData.Name || formData.name || 'No Name',
-            phone: normalizePhone(formData.Phone || formData.phone || formData.PHONE || ''),
-            email: formData.Email || formData.email ||  formData.EMAIL || 'No Email',
-            formName: formData.formname || null,
-            formId: formData.formid || null,
-            sourceDescription: sourceDescription,  
-            referer: null, 
-            formData: new Map(),
-            status: 'UC_HSS56X',
-            hidden: false,
-            dateCreate: new Date(),
-            updatedAt: new Date()
-        };
-
-        console.log('Lead data:', leadData);
-
-        for (const [key, value] of Object.entries(formData)) {
-            if (!['Name', 'Phone', 'Email', 'formname', 'formid', 'pageurl', 'referer', 'trantoken'].includes(key)) {
-                leadData.formData.set(key, value);
-            }
-        }
-
-        const existingLead = await Lead.findOne({ phone: leadData.phone });
+        console.log('\nRequest Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('\nRequest Query:', JSON.stringify(req.query, null, 2));
+        console.log('\nRequest Body:', JSON.stringify(req.body, null, 2));
         
-        if (existingLead) {
-            leadData.originalLeadId = existingLead._id;
-            leadData.status = 'DUPLICATE';
-            console.log('Duplicate lead detected:', existingLead._id);
+        const formData = req.body;
+         console.log("RRRRRRRRRRRR:", formData)
+        // Валідація обов'язкових полів
+        if (!formData.phone) {
+            console.log('Error: Phone number is missing');
+            return res.status(400).json({ message: 'Phone number is required' });
         }
 
-        const newLead = new Lead(leadData);
-        await newLead.save();
-        console.log('Lead saved:', {
-            id: newLead._id,
-            name: newLead.name,
-            phone: newLead.phone,
-            status: newLead.status
+        // Нормалізація номера телефону (видалення всіх символів крім цифр)
+        const normalizedPhone = formData.phone.replace(/\D/g, '');
+        console.log('Normalized phone:', normalizedPhone);
+
+        // Перевірка чи існує лід з таким номером
+        const existingLead = await Lead.findOne({ phone: formData.phone });
+        console.log('Existing lead:', existingLead ? 'Found' : 'Not found');
+         console.log(`Phone number: ${formData.phone}`)
+        // Визначення статусу
+        const status = existingLead ? 'DUPLICATE' : 'UC_HSS56X';
+
+        
+        console.log('Assigned status:', status);
+
+        // Створення нового ліда
+        const lead = new Lead({
+            name: formData.name || 'No Name',
+            phone: normalizedPhone || ' No Phone',
+            email: formData.email || ' No Email',
+            status: status || 'NEW',
+            sourceDescription: formData.source || req.headers.referer || 'No Source',
+            utm_source: formData.utm_source || 'No UTM Source',
+            utm_medium: formData.utm_medium || 'No UTM Medium',
+            utm_campaign: formData.utm_campaign || 'No UTM Campaign',
+            utm_content: formData.utm_content || 'No UTM Content',
+            utm_term: formData.utm_term || 'No UTM Term',
+            dateCreate: new Date(),
+            hidden:false
         });
 
-        return res.status(200).json({
-            status: 'success',
-            message: 'Lead data received and processed successfully',
-            leadId: newLead._id
+        await lead.save();
+        console.log('New lead saved with ID:', lead._id);
+
+        // Відправка даних через WebSocket
+        if (req.app.get('wss')) {
+            const wss = req.app.get('wss');
+            wss.clients.forEach((client) => {
+                if (client.readyState === 1) {
+                    client.send(JSON.stringify({
+                        type: 'NEW_LEAD',
+                        data: lead
+                    }));
+                }
+            });
+            console.log('WebSocket notification sent');
+        }
+
+        console.log('=== Tilda Webhook Completed Successfully ===\n');
+        return res.status(200).json({ 
+            message: 'Lead created successfully',
+            status: status,
+            leadId: lead._id
         });
     } catch (error) {
-        console.error('Error processing Tilda webhook:', error);
+        console.error('\n=== Tilda Webhook Error ===');
+        console.error('Error:', error);
+        console.error('Stack:', error.stack);
+        console.error('=== End Error ===\n');
+        
         return res.status(500).json({ 
-            status: 'error',
-            message: 'Error processing lead data',
+            message: 'Internal server error',
             error: error.message
         });
     }
 };
 
 module.exports = {
-    processTildaWebhook
+    handleTildaWebhook
 };
