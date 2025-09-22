@@ -23,6 +23,20 @@ const handleTildaWebhook = async (req, res) => {
         const normalizedPhone = phoneField ? phoneField.replace(/\D/g, '') : '';
         console.log('Normalized phone:', normalizedPhone || 'No phone provided');
 
+        // Витягування домену з formData.source
+        let extractedDomain = 'No UTM Source';
+        if (formData.source) {
+            try {
+                const url = new URL(formData.source);
+                extractedDomain = url.hostname;
+                console.log('Extracted domain from source:', extractedDomain);
+            } catch (error) {
+                console.log('Failed to parse source URL:', formData.source);
+                extractedDomain = formData.source; // Якщо не вдалося парсити, використовуємо оригінальне значення
+            }
+        }
+        console.log('Final utm_source value:', extractedDomain);
+
         // Перевірка, чи існує лід з таким номером (якщо номер є)
         let existingLead = null;
         if (normalizedPhone) {
@@ -41,7 +55,7 @@ const handleTildaWebhook = async (req, res) => {
             email: emailField,
             status: status,
             sourceDescription: formData.source || req.headers.referer || 'No Source',
-            utm_source: formData.utm_source || 'No UTM Source',
+            utm_source: extractedDomain,
             utm_medium: formData.utm_medium || 'No UTM Medium',
             utm_campaign: formData.utm_campaign || 'No UTM Campaign',
             utm_content: formData.utm_content || 'No UTM Content',
