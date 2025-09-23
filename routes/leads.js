@@ -360,6 +360,127 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Bulk delete leads
+router.delete('/bulk/delete', authenticateToken, async (req, res) => {
+  try {
+    const { leadIds } = req.body;
+    
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Не передано ідентифікатори лідів для видалення'
+      });
+    }
+
+    // Validate ObjectIds
+    const validIds = leadIds.filter(id => Types.ObjectId.isValid(id));
+    if (validIds.length !== leadIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Деякі ідентифікатори лідів мають невірний формат'
+      });
+    }
+
+    // Check if leads exist
+    const existingLeads = await Lead.find({ _id: { $in: validIds } });
+    if (existingLeads.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ліди не знайдені'
+      });
+    }
+
+    // Delete leads
+    const result = await Lead.deleteMany({ _id: { $in: validIds } });
+    
+    res.json({
+      success: true,
+      message: `Успішно видалено ${result.deletedCount} лідів`,
+      deletedCount: result.deletedCount,
+      requestedCount: leadIds.length
+    });
+
+  } catch (error) {
+    console.error('Bulk delete leads error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Помилка при видаленні лідів',
+      error: error.message
+    });
+  }
+});
+
+// Bulk update leads
+router.put('/bulk', authenticateToken, async (req, res) => {
+  try {
+    console.log('Backend - Bulk update request received:', {
+      body: req.body,
+      hasAuth: !!req.headers.authorization
+    });
+    
+    const { leadIds, updateData } = req.body;
+    
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Не передано ідентифікатори лідів для оновлення'
+      });
+    }
+
+    if (!updateData || typeof updateData !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: 'Не передано дані для оновлення'
+      });
+    }
+
+    // Validate ObjectIds
+    const validIds = leadIds.filter(id => Types.ObjectId.isValid(id));
+    if (validIds.length !== leadIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Деякі ідентифікатори лідів мають невірний формат'
+      });
+    }
+
+    // Check if leads exist
+    const existingLeads = await Lead.find({ _id: { $in: validIds } });
+    if (existingLeads.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ліди не знайдені'
+      });
+    }
+
+    // Update leads
+    const result = await Lead.updateMany(
+      { _id: { $in: validIds } },
+      { $set: updateData }
+    );
+    
+    console.log('Backend - Update result:', {
+      modifiedCount: result.modifiedCount,
+      requestedCount: leadIds.length,
+      updateData
+    });
+    
+    res.json({
+      success: true,
+      message: `Успішно оновлено ${result.modifiedCount} лідів`,
+      modifiedCount: result.modifiedCount,
+      requestedCount: leadIds.length
+    });
+
+  } catch (error) {
+    console.error('Bulk update leads error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Помилка при оновленні лідів',
+      error: error.message
+    });
+  }
+});
+
 // Update lead
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
