@@ -23,23 +23,28 @@ const handleTildaWebhook = async (req, res) => {
         const normalizedPhone = phoneField ? phoneField.replace(/\D/g, '') : '';
         console.log('Normalized phone:', normalizedPhone || 'No phone provided');
 
-        // Витягування домену з formData.source
-        let extractedDomain = 'No UTM Source';
-        if (formData.source) {
+        // Витягування домену з formData.source або referer заголовка
+        let extractedDomain = 'No Source';
+        const sourceUrl = formData.source || req.headers.referer || req.headers.referrer;
+        
+        if (sourceUrl) {
             try {
-                const url = new URL(formData.source);
+                const url = new URL(sourceUrl);
                 extractedDomain = url.hostname;
+                console.log('Source URL:', sourceUrl);
                 console.log('Raw hostname:', url.hostname);
                 console.log('Extracted domain from source:', extractedDomain);
             } catch (error) {
-                console.log('Failed to parse source URL:', formData.source);
+                console.log('Failed to parse source URL:', sourceUrl);
                 // Якщо не вдалося парсити як URL, спробуємо витягти домен вручну
-                const match = formData.source.match(/(?:https?:\/\/)?(?:www\.)?([^\/\?]+)/);
-                extractedDomain = match ? match[1] : formData.source;
+                const match = sourceUrl.match(/(?:https?:\/\/)?(?:www\.)?([^\/\?]+)/);
+                extractedDomain = match ? match[1] : sourceUrl;
                 console.log('Manual domain extraction result:', extractedDomain);
             }
+        } else {
+            console.log('No source URL found in formData.source or referer header');
         }
-        console.log('Final utm_source value:', extractedDomain);
+        console.log('Final sourceDescription value:', extractedDomain);
 
         // Перевірка, чи існує лід з таким номером (якщо номер є)
         let existingLead = null;
