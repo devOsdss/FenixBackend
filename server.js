@@ -8,9 +8,11 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: ['www.international-payments.cc', ], // Frontend URLs
+  origin: ['https://www.international-payments.cc'], // повний URL фронтенду
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
