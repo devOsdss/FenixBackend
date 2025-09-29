@@ -195,7 +195,9 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     if (utm_source) {
-      filter.utm_source = { $regex: utm_source, $options: 'i' };
+      // Replace + with spaces for UTM source matching (URL encoding issue)
+      const normalizedUtmSource = utm_source.replace(/\+/g, ' ');
+      filter.utm_source = { $regex: escapeRegex(normalizedUtmSource), $options: 'i' };
     }
 
     if (dateFrom || dateTo) {
@@ -854,7 +856,9 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
     }
 
     if (utm_source) {
-      filter.utm_source = { $regex: utm_source, $options: 'i' };
+      // Replace + with spaces for UTM source matching (URL encoding issue)
+      const normalizedUtmSource = utm_source.replace(/\+/g, ' ');
+      filter.utm_source = { $regex: escapeRegex(normalizedUtmSource), $options: 'i' };
     }
 
     // Date filters
