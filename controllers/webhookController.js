@@ -88,5 +88,4 @@ const handleTildaWebhook = async (req, res) => {
 
 module.exports = {
     handleTildaWebhook
-    handleTildaWebhook
 };
