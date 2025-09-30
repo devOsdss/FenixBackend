@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: ['https://www.international-payments.cc'], // повний URL фронтенду
+  origin: ['http://localhost:3000', 'http://localhost:3001'], // повний URL фронтенду
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   credentials: true
 }));
