@@ -15,14 +15,14 @@ const handleTildaWebhook = async (req, res) => {
          console.log("RRRRRRRRRRRR:", formData)
         
         // Валідація обов'язкових полів
-        if (!formData.Phone) {
-            console.log('Error: Phone number is missing');
-            return res.status(400).json({ message: 'Phone number is required' });
-        }
+        // if (!formData.Phone) {
+        //     console.log('Error: Phone number is missing');
+        //     return res.status(400).json({ message: 'Phone number is required' });
+        // }
 
         // Нормалізація номера телефону (видалення всіх символів крім цифр)
-        const normalizedPhone = formData.Phone.replace(/\D/g, '');
-        console.log('Normalized phone:', normalizedPhone);
+        const normalizedPhone = formData.Phone ? formData.Phone.replace(/\D/g, '') : "";
+        console.log('Normalized phne:', normalizedPhone);
 
         // Перевірка чи існує лід з таким номером
         const existingLead = await Lead.findOne({ phone: formData.Phone });
