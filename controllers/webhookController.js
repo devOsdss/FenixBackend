@@ -62,7 +62,7 @@ const handleTildaWebhook = async (req, res) => {
 
         // Створення нового ліда
         const lead = new Lead({
-            name: formData.Name || 'No Name',
+            name: formData.Name || formData.name  || "No Name",
             phone: normalizedPhone || ' No Phone',
             email: formData.Email || ' No Email',
             status: status || 'NEW',
