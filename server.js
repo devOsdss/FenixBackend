@@ -69,6 +69,7 @@ const sourcesRoutes = require('./routes/sources');
 const leadsHistoryRoutes = require('./routes/leadsHistory');
 const uploadRoutes = require('./routes/upload');
 const actionsRoutes = require('./routes/actions');
+const utmRoutes = require('./routes/utm');
 const webhookRoutes = require('./routes/webhookRoutes');
 
 // Use routes
@@ -82,6 +83,7 @@ app.use('/api/sources', sourcesRoutes);
 app.use('/api/leadsHistory', leadsHistoryRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/actions', actionsRoutes);
+app.use('/api/utm', utmRoutes);
 app.use('/api/webhook', webhookRoutes);
 
 // Error handling middleware

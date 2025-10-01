@@ -191,13 +191,22 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     if (sourceDescription) {
-      filter.sourceDescription = { $regex: sourceDescription, $options: 'i' };
+      // If search is already using $or, we need to combine conditions differently
+      if (filter.$or) {
+        // Add sourceDescription as an additional AND condition
+        filter.sourceDescription = { $regex: sourceDescription, $options: 'i' };
+      } else {
+        // Try to find source by URL first, then by name
+        filter.$or = [
+          { sourceDescription: { $regex: sourceDescription, $options: 'i' } },
+          { sourceDescription: sourceDescription } // exact match for URL
+        ];
+      }
     }
 
     if (utm_source) {
-      // Replace + with spaces for UTM source matching (URL encoding issue)
-      const normalizedUtmSource = utm_source.replace(/\+/g, ' ');
-      filter.utm_source = { $regex: escapeRegex(normalizedUtmSource), $options: 'i' };
+      // Exact match for UTM source filtering
+      filter.utm_source = utm_source;
     }
 
     if (dateFrom || dateTo) {
@@ -852,13 +861,22 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
     }
 
     if (sourceDescription) {
-      filter.sourceDescription = { $regex: sourceDescription, $options: 'i' };
+      // If search is already using $or, we need to combine conditions differently
+      if (filter.$or) {
+        // Add sourceDescription as an additional AND condition
+        filter.sourceDescription = { $regex: sourceDescription, $options: 'i' };
+      } else {
+        // Try to find source by URL first, then by name
+        filter.$or = [
+          { sourceDescription: { $regex: sourceDescription, $options: 'i' } },
+          { sourceDescription: sourceDescription } // exact match for URL
+        ];
+      }
     }
 
     if (utm_source) {
-      // Replace + with spaces for UTM source matching (URL encoding issue)
-      const normalizedUtmSource = utm_source.replace(/\+/g, ' ');
-      filter.utm_source = { $regex: escapeRegex(normalizedUtmSource), $options: 'i' };
+      // Exact match for UTM source filtering
+      filter.utm_source = utm_source;
     }
 
     // Date filters
