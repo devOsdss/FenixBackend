@@ -109,7 +109,7 @@ router.get('/value/:value', authenticateToken, async (req, res) => {
 // POST /api/statuses - Create new status
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { value, label, color, description, isActive = true, sortOrder = 0 } = req.body;
+    const { value, label, color, roleView, description, isActive = true, sortOrder = 0 } = req.body;
 
     // Validate required fields
     if (!value || !label || !color) {
@@ -133,6 +133,7 @@ router.post('/', authenticateToken, async (req, res) => {
       value,
       label,
       color,
+      roleView,
       description,
       isActive,
       sortOrder

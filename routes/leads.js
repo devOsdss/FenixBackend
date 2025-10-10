@@ -191,10 +191,20 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     if (sourceDescription) {
-      // If search is already using $or, we need to combine conditions differently
+      // If search is already using $or, we need to combine conditions with $and
       if (filter.$or) {
-        // Add sourceDescription as an additional AND condition
-        filter.sourceDescription = { $regex: sourceDescription, $options: 'i' };
+        // Combine search conditions with sourceDescription using $and
+        const searchConditions = filter.$or;
+        delete filter.$or;
+        filter.$and = [
+          { $or: searchConditions },
+          {
+            $or: [
+              { sourceDescription: { $regex: sourceDescription, $options: 'i' } },
+              { sourceDescription: sourceDescription } // exact match for URL
+            ]
+          }
+        ];
       } else {
         // Try to find source by URL first, then by name
         filter.$or = [
@@ -798,6 +808,7 @@ router.get('/stats/overview', authenticateToken, async (req, res) => {
 // Get leads count by status for filter buttons
 router.get('/stats/status-counts', authenticateToken, async (req, res) => {
   try {
+    console.log("Status-counts: All query parameters:", req.query);
     const { 
       assigned, 
       search,
@@ -852,6 +863,7 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
     }
     
     if (search) {
+      console.log("Status-counts: Search parameter received:", search);
       filter.$or = createPhoneSearchConditions(search);
     }
 
@@ -861,10 +873,20 @@ router.get('/stats/status-counts', authenticateToken, async (req, res) => {
     }
 
     if (sourceDescription) {
-      // If search is already using $or, we need to combine conditions differently
+      // If search is already using $or, we need to combine conditions with $and
       if (filter.$or) {
-        // Add sourceDescription as an additional AND condition
-        filter.sourceDescription = { $regex: sourceDescription, $options: 'i' };
+        // Combine search conditions with sourceDescription using $and
+        const searchConditions = filter.$or;
+        delete filter.$or;
+        filter.$and = [
+          { $or: searchConditions },
+          {
+            $or: [
+              { sourceDescription: { $regex: sourceDescription, $options: 'i' } },
+              { sourceDescription: sourceDescription } // exact match for URL
+            ]
+          }
+        ];
       } else {
         // Try to find source by URL first, then by name
         filter.$or = [
