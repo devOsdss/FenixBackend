@@ -20,7 +20,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
     
     if (search) {
-      filter.login = { $regex: search, $options: 'i' };
+      filter.login = { $regex: `^${search}`, $options: 'i' };
     }
     
     if (team) {
@@ -124,13 +124,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
     
     // Update fields (except password - handle separately)
-    const allowedFields = ['login', 'role', 'responsible', 'department', 'bitrixId'];
+    const allowedFields = ['login', 'role', 'responsible', 'department', 'password', 'team'];
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         admin[field] = req.body[field];
       }
     });
-    
+    console.log("REQBODY",req.body)
     await admin.save();
     
     res.json({

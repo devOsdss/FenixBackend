@@ -105,6 +105,19 @@ router.post('/', authenticateToken, async (req, res) => {
     });
 
     await team.save();
+
+    // Update team field for all members
+    const Admin = require('../models/Admin');
+    const allMemberIds = [...leaderIds, ...managerIds];
+    
+    if (allMemberIds.length > 0) {
+      console.log('Creating team - setting team field for users:', allMemberIds, 'Team name:', team.name);
+      const updateResult = await Admin.updateMany(
+        { _id: { $in: allMemberIds } },
+        { $set: { team: team.name } }
+      );
+      console.log('Create team update result:', updateResult);
+    }
     
     // Populate and return the created team
     const populatedTeam = await Team.findById(team._id)
@@ -140,6 +153,14 @@ router.put('/:id', authenticateToken, async (req, res) => {
       });
     }
 
+    // Store old member IDs for comparison
+    const oldLeaderIds = team.leaderIds.map(id => id.toString());
+    const oldManagerIds = team.managerIds.map(id => id.toString());
+    
+    console.log('Team update - Old leaders:', oldLeaderIds);
+    console.log('Team update - Old managers:', oldManagerIds);
+    console.log('Team update - Request body:', req.body);
+
     // Validation
     if (name !== undefined) {
       if (!name || !name.trim()) {
@@ -173,6 +194,47 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     await team.save();
+
+    // Update team field for users
+    const Admin = require('../models/Admin');
+    
+    // Get new member IDs
+    const newLeaderIds = (leaderIds || team.leaderIds).map(id => id.toString());
+    const newManagerIds = (managerIds || team.managerIds).map(id => id.toString());
+    const allNewMemberIds = [...newLeaderIds, ...newManagerIds];
+    const allOldMemberIds = [...oldLeaderIds, ...oldManagerIds];
+
+    console.log('Team update - New leaders:', newLeaderIds);
+    console.log('Team update - New managers:', newManagerIds);
+    console.log('Team update - All new members:', allNewMemberIds);
+    console.log('Team update - All old members:', allOldMemberIds);
+
+    // Find users who were removed from team
+    const removedUserIds = allOldMemberIds.filter(id => !allNewMemberIds.includes(id));
+    
+    // Find users who were added to team
+    const addedUserIds = allNewMemberIds.filter(id => !allOldMemberIds.includes(id));
+
+    console.log('Team update - Removed users:', removedUserIds);
+    console.log('Team update - Added users:', addedUserIds);
+
+    // Remove team from users who are no longer in the team
+    if (removedUserIds.length > 0) {
+      await Admin.updateMany(
+        { _id: { $in: removedUserIds } },
+        { $unset: { team: "" } }
+      );
+    }
+
+    // Add team to new users
+    if (addedUserIds.length > 0) {
+      console.log('Adding team to users:', addedUserIds, 'Team name:', team.name);
+      const updateResult = await Admin.updateMany(
+        { _id: { $in: addedUserIds } },
+        { $set: { team: team.name } }
+      );
+      console.log('Update result:', updateResult);
+    }
     
     // Populate and return updated team
     const updatedTeam = await Team.findById(team._id)
@@ -204,6 +266,17 @@ router.delete('/:id', authenticateToken, async (req, res) => {
         success: false,
         message: 'Команду не знайдено'
       });
+    }
+
+    // Clear team field from all members before deleting team
+    const Admin = require('../models/Admin');
+    const allMemberIds = [...team.leaderIds, ...team.managerIds];
+    
+    if (allMemberIds.length > 0) {
+      await Admin.updateMany(
+        { _id: { $in: allMemberIds } },
+        { $unset: { team: "" } }
+      );
     }
 
     await Team.findByIdAndDelete(req.params.id);
