@@ -100,18 +100,27 @@ async function buildLeadsFilter(query) {
 
   // Role-based filtering
   if (userRole && userId) {
+    console.log('🔍 Role-based filtering:', { userRole, userId, userTeam });
+    
     if (userRole === 'Manager' || userRole === 'Reten') {
       // Manager/Reten can only see leads assigned to them
       filter.assigned = userId;
+      console.log('👤 Manager/Reten filter applied:', filter.assigned);
     } else if (userRole === 'TeamLead' && userTeam) {
       try {
         const Admin = require('../models/Admin');
-        const teamMembers = await Admin.find({ team: userTeam }, '_id');
+        console.log('🔎 Looking for team members in team:', userTeam);
+        
+        const teamMembers = await Admin.find({ team: userTeam }, '_id login team');
+        console.log('👥 Found team members:', teamMembers);
+        
         const teamMemberIds = teamMembers.map(admin => admin._id.toString());
         teamMemberIds.push(userId); // Include TeamLead's own leads
+        
+        console.log('📋 Team member IDs (including TeamLead):', teamMemberIds);
         filter.assigned = { $in: teamMemberIds };
       } catch (error) {
-        console.error('Error fetching team members:', error);
+        console.error('❌ Error fetching team members:', error);
         // Fallback to showing only own leads
         filter.assigned = userId;
       }
@@ -252,6 +261,7 @@ async function buildLeadsFilter(query) {
     }
   }
 
+  console.log('🎯 Final filter object:', JSON.stringify(filter, null, 2));
   return filter;
 }
 
