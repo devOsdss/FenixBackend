@@ -138,14 +138,47 @@ async function buildLeadsFilter(query) {
     }
   }
 
-  // Assigned filter (only apply if no role-based filtering was applied)
-  if (assigned && !filter.assigned) {
-    if (Array.isArray(assigned)) {
-      filter.assigned = { $in: assigned };
-    } else if (typeof assigned === 'string' && assigned.includes(',')) {
-      filter.assigned = { $in: assigned.split(',').map(id => id.trim()).filter(Boolean) };
-    } else {
-      filter.assigned = assigned;
+  // Assigned filter - for TeamLead, intersect with team members
+  if (assigned) {
+    console.log('🎯 Processing assigned filter:', { assigned, userRole, hasExistingAssignedFilter: !!filter.assigned });
+    
+    if (userRole === 'TeamLead' && filter.assigned && filter.assigned.$in) {
+      // For TeamLead, intersect assigned filter with team members
+      let assignedIds = [];
+      if (Array.isArray(assigned)) {
+        assignedIds = assigned;
+      } else if (typeof assigned === 'string' && assigned.includes(',')) {
+        assignedIds = assigned.split(',').map(id => id.trim()).filter(Boolean);
+      } else {
+        assignedIds = [assigned];
+      }
+      
+      // Intersect with team member IDs
+      const teamMemberIds = filter.assigned.$in;
+      const intersectedIds = assignedIds.filter(id => teamMemberIds.includes(id));
+      
+      console.log('🔄 TeamLead filter intersection:', {
+        requestedIds: assignedIds,
+        teamMemberIds,
+        intersectedIds
+      });
+      
+      if (intersectedIds.length > 0) {
+        filter.assigned = { $in: intersectedIds };
+      } else {
+        // If no intersection, show no results
+        filter.assigned = { $in: [] };
+      }
+    } else if (!filter.assigned) {
+      // For other roles or when no role-based filtering was applied
+      if (Array.isArray(assigned)) {
+        filter.assigned = { $in: assigned };
+      } else if (typeof assigned === 'string' && assigned.includes(',')) {
+        filter.assigned = { $in: assigned.split(',').map(id => id.trim()).filter(Boolean) };
+      } else {
+        filter.assigned = assigned;
+      }
+      console.log('✅ Applied assigned filter for non-TeamLead:', filter.assigned);
     }
   }
 
