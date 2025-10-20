@@ -49,12 +49,18 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check route
+// Health check route with environment diagnostics
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: {
+      NODE_ENV: process.env.NODE_ENV || 'not set',
+      JWT_SECRET_SET: !!process.env.JWT_SECRET,
+      JWT_SECRET_LENGTH: process.env.JWT_SECRET?.length || 0,
+      JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || 'default (24h)'
+    }
   });
 });
 
