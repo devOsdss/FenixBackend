@@ -181,12 +181,47 @@ async function logLeadUnhidden(leadId, adminId, leadName) {
   });
 }
 
+/**
+ * Log comment/note edit
+ */
+async function logCommentEdited(leadId, adminId, oldText, newText, leadName) {
+  return await logLeadHistory({
+    leadId,
+    actionType: 'COMMENT_EDITED',
+    description: `Коментар відредаговано`,
+    adminId,
+    metadata: {
+      leadName,
+      oldText: oldText.substring(0, 100),
+      newText: newText.substring(0, 100)
+    }
+  });
+}
+
+/**
+ * Log comment/note deletion
+ */
+async function logCommentDeleted(leadId, adminId, deletedText, leadName) {
+  return await logLeadHistory({
+    leadId,
+    actionType: 'COMMENT_DELETED',
+    description: `Коментар видалено: ${deletedText.substring(0, 100)}${deletedText.length > 100 ? '...' : ''}`,
+    adminId,
+    metadata: {
+      leadName,
+      deletedText
+    }
+  });
+}
+
 module.exports = {
   logLeadHistory,
   logLeadCreated,
   logStatusChanged,
   logAssignmentChanged,
   logCommentAdded,
+  logCommentEdited,
+  logCommentDeleted,
   logLeadUpdated,
   logContactInfoUpdated,
   logLeadHidden,

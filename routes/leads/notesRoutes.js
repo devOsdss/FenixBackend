@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Lead = require('../../models/Lead');
 const { authenticateToken } = require('../../middleware/auth');
-const { logCommentAdded, logCommentEdited, logCommentDeleted } = require('../../utils/leadHelpers');
+const { logCommentAdded, logCommentEdited, logCommentDeleted } = require('../../utils/historyLogger');
 
 // Add note to lead
 router.post('/:id/notes', authenticateToken, async (req, res) => {
