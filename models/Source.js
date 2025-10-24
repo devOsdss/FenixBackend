@@ -96,7 +96,8 @@ sourceSchema.statics.getSourceOptions = async function() {
   }));
 };
 
-// Use correct collection name 'source'
-const Source = mongoose.model('Source', sourceSchema, 'source');
+// Try to use existing collection or create new one
+// MongoDB will use 'sources' by default if third parameter not specified
+const Source = mongoose.model('Source', sourceSchema);
 
 module.exports = Source;

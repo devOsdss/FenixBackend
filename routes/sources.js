@@ -8,7 +8,8 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const { active, sortBy = 'priority', sortOrder = 'asc' } = req.query;
     
-    console.log('Sources API called with params:', { active, sortBy, sortOrder });
+    console.log('🔍 Sources API called with params:', { active, sortBy, sortOrder });
+    console.log('🔍 User from token:', req.admin ? req.admin.login : 'No user');
     
     // Build filter
     const filter = {};
@@ -16,7 +17,7 @@ router.get('/', authenticateToken, async (req, res) => {
       filter.isActive = active === 'true';
     }
 
-    console.log('Sources filter:', filter);
+    console.log('🔍 Sources filter:', filter);
 
     // Build sort - validate sortBy to prevent errors
     const validSortFields = ['name', 'priority', 'type', 'createdAt', 'updatedAt'];
@@ -24,11 +25,21 @@ router.get('/', authenticateToken, async (req, res) => {
     const sort = {};
     sort[safeSortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    console.log('Sources sort:', sort);
+    console.log('🔍 Sources sort:', sort);
 
-    const sources = await Source.find(filter).sort(sort);
-    console.log('Found sources:', sources.length);
-    console.log('Sources data:', sources.map(s => ({ name: s.name, isActive: s.isActive, _id: s._id })));
+    let sources;
+    try {
+      sources = await Source.find(filter).sort(sort);
+      console.log('✅ Found sources:', sources.length);
+      if (sources.length > 0) {
+        console.log('✅ First source:', { name: sources[0].name, isActive: sources[0].isActive, _id: sources[0]._id });
+      }
+    } catch (dbError) {
+      console.error('❌ Database error finding sources:', dbError);
+      console.error('❌ DB Error details:', dbError.message);
+      // Return empty array if database error
+      sources = [];
+    }
     
     // If no sources exist, create some default ones
     if (sources.length === 0) {
