@@ -18,9 +18,13 @@ router.get('/', authenticateToken, async (req, res) => {
 
     console.log('Sources filter:', filter);
 
-    // Build sort
+    // Build sort - validate sortBy to prevent errors
+    const validSortFields = ['name', 'priority', 'type', 'createdAt', 'updatedAt'];
+    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'priority';
     const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    sort[safeSortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    console.log('Sources sort:', sort);
 
     const sources = await Source.find(filter).sort(sort);
     console.log('Found sources:', sources.length);
@@ -88,10 +92,14 @@ router.get('/', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching sources:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
     res.status(500).json({
       success: false,
       message: 'Помилка при отриманні джерел',
-      error: error.message
+      error: error.message,
+      errorName: error.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
