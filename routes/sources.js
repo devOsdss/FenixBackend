@@ -8,8 +8,7 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const { active, sortBy = 'priority', sortOrder = 'asc' } = req.query;
     
-    console.log('🔍 Sources API called with params:', { active, sortBy, sortOrder });
-    console.log('🔍 User from token:', req.admin ? req.admin.login : 'No user');
+    console.log('Sources API called with params:', { active, sortBy, sortOrder });
     
     // Build filter
     const filter = {};
@@ -17,7 +16,7 @@ router.get('/', authenticateToken, async (req, res) => {
       filter.isActive = active === 'true';
     }
 
-    console.log('🔍 Sources filter:', filter);
+    console.log('Sources filter:', filter);
 
     // Build sort - validate sortBy to prevent errors
     const validSortFields = ['name', 'priority', 'type', 'createdAt', 'updatedAt'];
@@ -25,81 +24,15 @@ router.get('/', authenticateToken, async (req, res) => {
     const sort = {};
     sort[safeSortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    console.log('🔍 Sources sort:', sort);
+    console.log('Sources sort:', sort);
 
-    let sources;
-    try {
-      sources = await Source.find(filter).sort(sort);
-      console.log('✅ Found sources:', sources.length);
-      if (sources.length > 0) {
-        console.log('✅ First source:', { name: sources[0].name, isActive: sources[0].isActive, _id: sources[0]._id });
-      }
-    } catch (dbError) {
-      console.error('❌ Database error finding sources:', dbError);
-      console.error('❌ DB Error details:', dbError.message);
-      // Return empty array if database error
-      sources = [];
-    }
-    
-    // If no sources exist, create some default ones
-    if (sources.length === 0) {
-      console.log('No sources found, creating default sources...');
-      const defaultSources = [
-        { name: 'Website', type: 'website', isActive: true, priority: 1, value: 'website', label: 'Website' },
-        { name: 'Google Ads', type: 'advertising', isActive: true, priority: 2, value: 'google-ads', label: 'Google Ads' },
-        { name: 'Facebook', type: 'social', isActive: true, priority: 3, value: 'facebook', label: 'Facebook' },
-        { name: 'Instagram', type: 'social', isActive: true, priority: 4, value: 'instagram', label: 'Instagram' },
-        { name: 'Referral', type: 'referral', isActive: true, priority: 5, value: 'referral', label: 'Referral' }
-      ];
-      
-      try {
-        await Source.insertMany(defaultSources);
-        console.log('Default sources created');
-        // Re-fetch sources
-        const newSources = await Source.find(filter).sort(sort);
-        console.log('Re-fetched sources:', newSources.length);
-        return res.json({
-          success: true,
-          data: newSources.map(source => {
-            const sourceObj = source.toObject();
-            return {
-              ...sourceObj,
-              value: sourceObj.value || sourceObj.name,
-              label: sourceObj.label || sourceObj.name
-            };
-          }),
-          count: newSources.length
-        });
-      } catch (createError) {
-        console.error('Error creating default sources:', createError);
-      }
-    }
-    
-    // Transform data to ensure compatibility with frontend
-    const transformedSources = sources.map(source => {
-      const sourceObj = source.toObject();
-      
-      // If old structure, map to new structure
-      if (!sourceObj.name && sourceObj.label) {
-        sourceObj.name = sourceObj.label;
-      }
-      if (!sourceObj.type) {
-        sourceObj.type = 'other';
-      }
-      if (sourceObj.isActive === undefined) {
-        sourceObj.isActive = true;
-      }
-      if (!sourceObj.priority) {
-        sourceObj.priority = 0;
-      }
-      
-      return sourceObj;
-    });
+    const sources = await Source.find(filter).sort(sort);
+    console.log('Found sources:', sources.length);
     
     res.json({
       success: true,
-      data: transformedSources,
-      count: transformedSources.length
+      data: sources,
+      count: sources.length
     });
   } catch (error) {
     console.error('Error fetching sources:', error);
