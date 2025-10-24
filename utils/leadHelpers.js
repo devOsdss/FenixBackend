@@ -201,24 +201,40 @@ async function buildLeadsFilter(query) {
     filter.department = department;
   }
 
-  // Source description filter
-  if (sourceDescription && sourceDescription.trim() !== '') {
-    const sourceConditions = [
-      { sourceDescription: { $regex: `^${escapeRegex(sourceDescription)}`, $options: 'i' } }, // Exact start match
-      { sourceDescription: sourceDescription }, // Exact match
-      { sourceDescription: { $regex: escapeRegex(sourceDescription), $options: 'i' } } // Contains match
-    ];
+  // Source description filter - supports multiple sources
+  if (sourceDescription) {
+    console.log('📋 sourceDescription received:', sourceDescription, 'type:', typeof sourceDescription);
+    let sources = [];
     
-    if (filter.$or) {
-      // Combine with existing search conditions using $and
-      const searchConditions = filter.$or;
-      delete filter.$or;
-      filter.$and = [
-        { $or: searchConditions },
-        { $or: sourceConditions }
-      ];
-    } else {
-      filter.$or = sourceConditions;
+    // Handle both string and array formats
+    if (typeof sourceDescription === 'string' && sourceDescription.trim() !== '') {
+      sources = [sourceDescription];
+    } else if (Array.isArray(sourceDescription) && sourceDescription.length > 0) {
+      sources = sourceDescription.filter(s => s && s.trim() !== '');
+    }
+    
+    console.log('📋 Parsed sources:', sources);
+    
+    if (sources.length > 0) {
+      const sourceConditions = sources.flatMap(source => [
+        { sourceDescription: { $regex: `^${escapeRegex(source)}`, $options: 'i' } }, // Exact start match
+        { sourceDescription: source }, // Exact match
+        { sourceDescription: { $regex: escapeRegex(source), $options: 'i' } } // Contains match
+      ]);
+      
+      console.log('📋 Source conditions:', JSON.stringify(sourceConditions, null, 2));
+      
+      if (filter.$or) {
+        // Combine with existing search conditions using $and
+        const searchConditions = filter.$or;
+        delete filter.$or;
+        filter.$and = [
+          { $or: searchConditions },
+          { $or: sourceConditions }
+        ];
+      } else {
+        filter.$or = sourceConditions;
+      }
     }
   }
 

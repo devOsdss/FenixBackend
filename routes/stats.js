@@ -6,24 +6,21 @@ const { authenticateToken } = require('../middleware/auth');
 // Get detailed leads statistics
 router.get('/leads/detailed', authenticateToken, async (req, res) => {
   try {
-    // Get total count of leads (excluding hidden)
-    const totalLeads = await Lead.countDocuments({ hidden: { $ne: true } });
+    // Get total count of leads (including hidden)
+    const totalLeads = await Lead.countDocuments({});
     
     // Get count of leads with status DUPLICATE
     const duplicateLeads = await Lead.countDocuments({ 
-      hidden: { $ne: true }, 
       status: 'DUPLICATE' 
     });
     
     // Get count of leads with department = 9
     const department9Leads = await Lead.countDocuments({ 
-      hidden: { $ne: true }, 
       department: '9' 
     });
     
     // Get count of leads with status CONVERTED
     const convertedLeads = await Lead.countDocuments({ 
-      hidden: { $ne: true }, 
       status: 'CONVERTED' 
     });
     
@@ -58,9 +55,6 @@ router.get('/leads/overview', authenticateToken, async (req, res) => {
   try {
     const stats = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: '$status',
           count: { $sum: 1 }
@@ -68,7 +62,7 @@ router.get('/leads/overview', authenticateToken, async (req, res) => {
       }
     ]);
     
-    const total = await Lead.countDocuments({ hidden: { $ne: true } });
+    const total = await Lead.countDocuments({});
     
     res.json({
       success: true,
@@ -97,9 +91,6 @@ router.get('/leads/status-counts', authenticateToken, async (req, res) => {
     // Get counts by status
     const statusCounts = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: '$status',
           count: { $sum: 1 }
@@ -108,7 +99,7 @@ router.get('/leads/status-counts', authenticateToken, async (req, res) => {
     ]);
     
     // Get total count
-    const total = await Lead.countDocuments({ hidden: { $ne: true } });
+    const total = await Lead.countDocuments({});
     
     // Format response for filter buttons
     const counts = {
@@ -142,9 +133,6 @@ router.get('/leads/by-source-description', authenticateToken, async (req, res) =
     // Get total leads count by sourceDescription
     const leadsBySource = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: '$sourceDescription',
           totalCount: { $sum: 1 },
@@ -161,7 +149,7 @@ router.get('/leads/by-source-description', authenticateToken, async (req, res) =
     ]);
 
     // Calculate percentages and format data
-    const totalLeads = await Lead.countDocuments({ hidden: { $ne: true } });
+    const totalLeads = await Lead.countDocuments({});
     const formattedData = leadsBySource.map(item => {
       const duplicatePercentage = item.totalCount > 0 
         ? ((item.duplicateCount / item.totalCount) * 100).toFixed(2) 
@@ -203,9 +191,6 @@ router.get('/leads/by-utm-source', authenticateToken, async (req, res) => {
     // Get total leads count by utm_source
     const leadsByUtmSource = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: '$utm_source',
           totalCount: { $sum: 1 },
@@ -222,7 +207,7 @@ router.get('/leads/by-utm-source', authenticateToken, async (req, res) => {
     ]);
 
     // Calculate percentages and format data
-    const totalLeads = await Lead.countDocuments({ hidden: { $ne: true } });
+    const totalLeads = await Lead.countDocuments({});
     const formattedData = leadsByUtmSource.map(item => {
       const duplicatePercentage = item.totalCount > 0 
         ? ((item.duplicateCount / item.totalCount) * 100).toFixed(2) 
@@ -264,9 +249,6 @@ router.get('/leads/by-manager', authenticateToken, async (req, res) => {
     // Get leads count and status breakdown by manager
     const leadsByManager = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: {
             manager: '$manager',
@@ -293,7 +275,7 @@ router.get('/leads/by-manager', authenticateToken, async (req, res) => {
     ]);
 
     // Format data with status breakdown
-    const totalLeads = await Lead.countDocuments({ hidden: { $ne: true } });
+    const totalLeads = await Lead.countDocuments({});
     const formattedData = leadsByManager.map(item => {
       const statusObj = {};
       let convertedCount = 0;
@@ -351,9 +333,6 @@ router.get('/leads/by-team', authenticateToken, async (req, res) => {
     // Get leads count by team
     const leadsByTeam = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: '$team',
           totalCount: { $sum: 1 },
@@ -375,7 +354,7 @@ router.get('/leads/by-team', authenticateToken, async (req, res) => {
     ]);
 
     // Calculate percentages and format data
-    const totalLeads = await Lead.countDocuments({ hidden: { $ne: true } });
+    const totalLeads = await Lead.countDocuments({});
     const formattedData = leadsByTeam.map(item => {
       const conversionRate = item.totalCount > 0 
         ? ((item.convertedCount / item.totalCount) * 100).toFixed(2) 
@@ -421,9 +400,6 @@ router.get('/leads/source-description-leads', authenticateToken, async (req, res
   try {
     const leadsBySource = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: '$sourceDescription',
           count: { $sum: 1 }
@@ -434,7 +410,7 @@ router.get('/leads/source-description-leads', authenticateToken, async (req, res
       }
     ]);
 
-    const totalLeads = await Lead.countDocuments({ hidden: { $ne: true } });
+    const totalLeads = await Lead.countDocuments({});
     const formattedData = leadsBySource.map(item => ({
       sourceDescription: item._id || 'Не указано',
       count: item.count,
@@ -463,9 +439,6 @@ router.get('/leads/utm-source-leads', authenticateToken, async (req, res) => {
   try {
     const leadsByUtm = await Lead.aggregate([
       {
-        $match: { hidden: { $ne: true } }
-      },
-      {
         $group: {
           _id: '$utm_source',
           count: { $sum: 1 }
@@ -476,7 +449,7 @@ router.get('/leads/utm-source-leads', authenticateToken, async (req, res) => {
       }
     ]);
 
-    const totalLeads = await Lead.countDocuments({ hidden: { $ne: true } });
+    const totalLeads = await Lead.countDocuments({});
     const formattedData = leadsByUtm.map(item => ({
       utmSource: item._id || 'Не указано',
       count: item.count,
@@ -506,7 +479,6 @@ router.get('/leads/source-description-duplicates', authenticateToken, async (req
     const duplicatesBySource = await Lead.aggregate([
       {
         $match: { 
-          hidden: { $ne: true },
           status: 'DUPLICATE'
         }
       },
@@ -522,7 +494,6 @@ router.get('/leads/source-description-duplicates', authenticateToken, async (req
     ]);
 
     const totalDuplicates = await Lead.countDocuments({ 
-      hidden: { $ne: true },
       status: 'DUPLICATE'
     });
     
@@ -555,7 +526,6 @@ router.get('/leads/utm-source-duplicates', authenticateToken, async (req, res) =
     const duplicatesByUtm = await Lead.aggregate([
       {
         $match: { 
-          hidden: { $ne: true },
           status: 'DUPLICATE'
         }
       },
@@ -571,7 +541,6 @@ router.get('/leads/utm-source-duplicates', authenticateToken, async (req, res) =
     ]);
 
     const totalDuplicates = await Lead.countDocuments({ 
-      hidden: { $ne: true },
       status: 'DUPLICATE'
     });
     
@@ -606,7 +575,6 @@ router.get('/leads/team-status-breakdown/:teamName', authenticateToken, async (r
     const teamStats = await Lead.aggregate([
       {
         $match: { 
-          hidden: { $ne: true },
           team: teamName
         }
       },
@@ -622,7 +590,6 @@ router.get('/leads/team-status-breakdown/:teamName', authenticateToken, async (r
     ]);
 
     const totalTeamLeads = await Lead.countDocuments({ 
-      hidden: { $ne: true },
       team: teamName
     });
     
@@ -658,7 +625,6 @@ router.get('/leads/utm-status-breakdown/:utmSource', authenticateToken, async (r
     const utmStats = await Lead.aggregate([
       {
         $match: { 
-          hidden: { $ne: true },
           utm_source: utmSource
         }
       },
@@ -674,7 +640,6 @@ router.get('/leads/utm-status-breakdown/:utmSource', authenticateToken, async (r
     ]);
 
     const totalUtmLeads = await Lead.countDocuments({ 
-      hidden: { $ne: true },
       utm_source: utmSource
     });
     
@@ -710,7 +675,6 @@ router.get('/leads/source-status-breakdown/:sourceDescription', authenticateToke
     const sourceStats = await Lead.aggregate([
       {
         $match: { 
-          hidden: { $ne: true },
           sourceDescription: sourceDescription
         }
       },
@@ -726,7 +690,6 @@ router.get('/leads/source-status-breakdown/:sourceDescription', authenticateToke
     ]);
 
     const totalSourceLeads = await Lead.countDocuments({ 
-      hidden: { $ne: true },
       sourceDescription: sourceDescription
     });
     
@@ -757,7 +720,7 @@ router.get('/leads/source-status-breakdown/:sourceDescription', authenticateToke
 // Get all teams list for selector
 router.get('/leads/teams-list', authenticateToken, async (req, res) => {
   try {
-    const teams = await Lead.distinct('team', { hidden: { $ne: true } });
+    const teams = await Lead.distinct('team');
     const filteredTeams = teams.filter(team => team && team !== null);
     
     res.json({
@@ -777,18 +740,18 @@ router.get('/leads/teams-list', authenticateToken, async (req, res) => {
 // Get all UTM sources list for selector
 router.get('/leads/utm-sources-list', authenticateToken, async (req, res) => {
   try {
-    const utmSources = await Lead.distinct('utm_source', { hidden: { $ne: true } });
-    const filteredSources = utmSources.filter(source => source && source !== null);
+    const utmSources = await Lead.distinct('utm_source');
+    const filteredSources = utmSources.filter(source => source && source !== null && source !== '');
     
     res.json({
       success: true,
-      data: filteredSources
+      data: filteredSources.sort()
     });
   } catch (error) {
     console.error('Get UTM sources list error:', error);
     res.status(500).json({
       success: false,
-      message: 'Ошибка при получении списка UTM источников',
+      message: 'Помилка при отриманні списку UTM джерел',
       error: error.message
     });
   }
@@ -797,18 +760,18 @@ router.get('/leads/utm-sources-list', authenticateToken, async (req, res) => {
 // Get all source descriptions list for selector
 router.get('/leads/source-descriptions-list', authenticateToken, async (req, res) => {
   try {
-    const sourceDescriptions = await Lead.distinct('sourceDescription', { hidden: { $ne: true } });
-    const filteredSources = sourceDescriptions.filter(source => source && source !== null);
+    const sourceDescriptions = await Lead.distinct('sourceDescription');
+    const filteredSources = sourceDescriptions.filter(source => source && source !== null && source !== '');
     
     res.json({
       success: true,
-      data: filteredSources
+      data: filteredSources.sort()
     });
   } catch (error) {
     console.error('Get source descriptions list error:', error);
     res.status(500).json({
       success: false,
-      message: 'Ошибка при получении списка источников',
+      message: 'Помилка при отриманні списку джерел',
       error: error.message
     });
   }

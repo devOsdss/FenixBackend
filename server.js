@@ -77,22 +77,51 @@ const uploadRoutes = require('./routes/upload');
 const actionsRoutes = require('./routes/actions');
 const utmRoutes = require('./routes/utm');
 const webhookRoutes = require('./routes/webhookRoutes');
+const successfulLeadsRoutes = require('./routes/successfulLeads');
 
 // Use routes
+console.log('Loading /api/auth...');
 app.use('/api/auth', authRoutes);
+
+console.log('Loading /api/leads...');
 app.use('/api/leads', leadsRoutes);
+
+console.log('Loading /api/admins...');
 app.use('/api/admins', adminRoutes);
+
+console.log('Loading /api/statuses...');
 app.use('/api/statuses', statusRoutes);
+
+console.log('Loading /api/teams...');
 app.use('/api/teams', teamsRoutes);
+
+console.log('Loading /api/stats...');
 app.use('/api/stats', statsRoutes);
+
+console.log('Loading /api/sources...');
 app.use('/api/sources', sourcesRoutes);
+
+console.log('Loading /api/leadsHistory...');
 app.use('/api/leadsHistory', leadsHistoryRoutes);
+
+console.log('Loading /api/upload...');
 app.use('/api/upload', uploadRoutes);
-app.use('/api/actions', actionsRoutes);
-app.use('/api/utm', utmRoutes);
+
+console.log('Loading /api/webhook...');
 app.use('/api/webhook', webhookRoutes);
 
-// Error handling middleware
+console.log('Loading /api/actions...');
+app.use('/api/actions', actionsRoutes);
+
+console.log('Loading /api/utm...');
+app.use('/api/utm', utmRoutes);
+
+console.log('Loading /api/successful-leads...');
+app.use('/api/successful-leads', successfulLeadsRoutes);
+
+
+
+
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
   res.status(500).json({
@@ -102,7 +131,7 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     message: 'Route not found',
     path: req.originalUrl
