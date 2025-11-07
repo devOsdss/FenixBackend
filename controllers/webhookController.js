@@ -71,6 +71,7 @@ const handleTildaWebhook = async (req, res) => {
             utm_medium: formData.utm_medium || 'No UTM Medium',
             utm_campaign: formData.utm_campaign || 'No UTM Campaign',
             utm_content: formData.utm_content || 'No UTM Content',
+            department: 9,
             utm_term: formData.utm_term || 'No UTM Term',
             dateCreate: new Date(),
             hidden:false
