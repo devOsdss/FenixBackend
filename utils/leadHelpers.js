@@ -82,6 +82,7 @@ async function buildLeadsFilter(query) {
     search,
     hidden,
     department,
+    team,
     sourceDescription,
     utm_source,
     dateFrom,
@@ -199,6 +200,62 @@ async function buildLeadsFilter(query) {
   // Department filter
   if (department) {
     filter.department = department;
+  }
+
+  // Team filter - find all team members and filter leads assigned to them
+  if (team) {
+    try {
+      const Team = require('../models/Teams');
+      console.log('🔎 Looking for team:', team);
+      
+      const teamDoc = await Team.findById(team).populate('leaderIds managerIds');
+      
+      if (teamDoc) {
+        // Collect all team member IDs (leaders + managers)
+        const teamMemberIds = [
+          ...teamDoc.leaderIds.map(leader => leader._id.toString()),
+          ...teamDoc.managerIds.map(manager => manager._id.toString())
+        ];
+        
+        console.log('👥 Team members found:', teamMemberIds);
+        
+        if (teamMemberIds.length > 0) {
+          // If there's already an assigned filter, intersect with team members
+          if (filter.assigned) {
+            if (filter.assigned.$in) {
+              // Intersect existing assigned filter with team members
+              const intersectedIds = filter.assigned.$in.filter(id => 
+                teamMemberIds.includes(id.toString())
+              );
+              filter.assigned = { $in: intersectedIds };
+              console.log('🔄 Intersected assigned filter with team members:', intersectedIds);
+            } else {
+              // Single assigned value - check if it's in team
+              const assignedId = filter.assigned.toString();
+              if (teamMemberIds.includes(assignedId)) {
+                filter.assigned = assignedId;
+              } else {
+                filter.assigned = { $in: [] }; // No results
+              }
+            }
+          } else {
+            // No existing assigned filter, use team members
+            filter.assigned = { $in: teamMemberIds };
+            console.log('✅ Applied team filter:', teamMemberIds);
+          }
+        } else {
+          // Team has no members, show no results
+          filter.assigned = { $in: [] };
+          console.log('⚠️ Team has no members');
+        }
+      } else {
+        console.log('⚠️ Team not found');
+        filter.assigned = { $in: [] }; // Team not found, show no results
+      }
+    } catch (error) {
+      console.error('❌ Error fetching team members:', error);
+      filter.assigned = { $in: [] }; // Error, show no results
+    }
   }
 
   // Source description filter - supports multiple sources
