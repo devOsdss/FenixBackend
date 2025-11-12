@@ -78,6 +78,7 @@ const actionsRoutes = require('./routes/actions');
 const utmRoutes = require('./routes/utm');
 const webhookRoutes = require('./routes/webhookRoutes');
 const successfulLeadsRoutes = require('./routes/successfulLeads');
+const integrationRoutes = require('./routes/integrationRoutes');
 
 // Use routes
 console.log('Loading /api/auth...');
@@ -118,6 +119,9 @@ app.use('/api/utm', utmRoutes);
 
 console.log('Loading /api/successful-leads...');
 app.use('/api/successful-leads', successfulLeadsRoutes);
+
+console.log('Loading /api/integration...');
+app.use('/api/integration', integrationRoutes);
 
 
 
