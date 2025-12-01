@@ -55,8 +55,8 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
 
-    // Get admin data from lead
-    const assigned = lead.assigned;
+    // Get admin data from lead or use current admin
+    const assigned = lead.assigned || req.admin._id;
     const team = req.admin?.team || null;
 
     // Create successful lead
