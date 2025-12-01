@@ -8,7 +8,7 @@ const { authenticateToken } = require('../middleware/auth');
 // POST /api/successful-leads - Create successful lead
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { leadId, amount, closeDate, transferDate } = req.body;
+    const { leadId, amount, closeDate, transferDate, payoutAmount, isPaid } = req.body;
 
     // Validation
     if (!leadId || !amount || !closeDate || !transferDate) {
@@ -16,6 +16,26 @@ router.post('/', authenticateToken, async (req, res) => {
         success: false,
         message: 'Все поля обязательны: leadId, amount, closeDate, transferDate'
       });
+    }
+
+    // Validate payout: if isPaid=true, then payoutAmount is required
+    const isPaidBoolean = isPaid === true || isPaid === 'true';
+    if (isPaidBoolean && !payoutAmount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Укажите сумму выплаты'
+      });
+    }
+
+    // Validate payoutAmount if provided
+    if (payoutAmount) {
+      const parsedPayoutAmount = parseFloat(payoutAmount);
+      if (isNaN(parsedPayoutAmount) || parsedPayoutAmount < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Сумма выплаты должна быть положительным числом'
+        });
+      }
     }
 
     // Validate leadId
@@ -47,7 +67,9 @@ router.post('/', authenticateToken, async (req, res) => {
       closeDate: new Date(closeDate),
       transferDate: new Date(transferDate),
       assigned,
-      team
+      team,
+      payoutAmount: payoutAmount ? parseFloat(payoutAmount) : null,
+      isPaid: isPaidBoolean
     });
 
     await successfulLead.save();
@@ -87,6 +109,8 @@ router.get('/', authenticateToken, async (req, res) => {
       userRole,
       userId
     } = req.query;
+    
+    console.log('📥 GET /api/successful-leads - Query params:', req.query);
     
     // Build filter
     const filter = {};
@@ -143,6 +167,8 @@ router.get('/', authenticateToken, async (req, res) => {
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    console.log('🔍 Filter applied:', JSON.stringify(filter));
+    
     // Get successful leads with population
     const successfulLeads = await SuccessfulLead.find(filter)
       .populate('assigned', 'login')
@@ -152,6 +178,8 @@ router.get('/', authenticateToken, async (req, res) => {
       .limit(parseInt(limit));
 
     const total = await SuccessfulLead.countDocuments(filter);
+
+    console.log('📊 Found successful leads:', successfulLeads.length, 'Total:', total);
 
     res.json({
       success: true,

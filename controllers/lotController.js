@@ -38,7 +38,7 @@ class LotController {
     session.startTransaction();
 
     try {
-      const { leadId, lotName, amount, lotDate } = req.body;
+      const { leadId, lotName, amount, lotDate, payoutAmount, isPaid } = req.body;
       const adminId = req.admin._id;
       const adminRole = req.admin.role;
 
@@ -57,6 +57,28 @@ class LotController {
             lotDate: !lotDate ? 'Дата обязательна' : null
           }
         });
+      }
+
+      // Validate payout: if isPaid=true, then payoutAmount is required
+      const isPaidBoolean = isPaid === true || isPaid === 'true';
+      if (isPaidBoolean && !payoutAmount) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Укажите сумму выплаты'
+        });
+      }
+
+      // Validate payoutAmount if provided
+      if (payoutAmount) {
+        const parsedPayoutAmount = parseFloat(payoutAmount);
+        if (isNaN(parsedPayoutAmount) || parsedPayoutAmount < 0) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            success: false,
+            message: 'Сумма выплаты должна быть положительным числом'
+          });
+        }
       }
 
       // Validate leadId format
@@ -132,7 +154,9 @@ class LotController {
         assignedTo: lead.assigned || adminId,
         team: req.admin.team || null,
         department: lead.department || null,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        payoutAmount: payoutAmount ? parseFloat(payoutAmount) : null,
+        isPaid: isPaidBoolean
       };
 
       const lot = new Lot(lotData);

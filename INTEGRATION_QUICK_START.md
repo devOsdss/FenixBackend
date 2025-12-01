@@ -24,7 +24,7 @@ npm start
 ### Швидкий тест через cURL:
 
 ```bash
-curl -X POST http://localhost:5000/api/integration \
+curl -X POST https://fenixbackend.onrender.com/api/integration \
   -H "Content-Type: application/json" \
   -H "X-API-Key: ваш_api_ключ" \
   -d '{

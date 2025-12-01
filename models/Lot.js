@@ -107,6 +107,25 @@ const lotSchema = new mongoose.Schema({
     default: null
   },
 
+  // Payout Information
+  payoutAmount: {
+    type: Number,
+    min: [0, 'Сумма выплаты не может быть отрицательной'],
+    default: null,
+    validate: {
+      validator: function(value) {
+        if (value === null || value === undefined) return true;
+        return Number.isFinite(value) && value >= 0;
+      },
+      message: 'Сумма выплаты должна быть положительным числом'
+    }
+  },
+
+  isPaid: {
+    type: Boolean,
+    default: false
+  },
+
   // Edit History for Amount Changes
   amountHistory: [{
     previousAmount: {

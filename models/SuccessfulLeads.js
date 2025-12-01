@@ -41,9 +41,29 @@ const successfulLeadSchema = new mongoose.Schema({
   leadName: {
     type: String,
     required: true
+  },
+
+  // Payout Information
+  payoutAmount: {
+    type: Number,
+    min: [0, 'Сумма выплаты не может быть отрицательной'],
+    default: null,
+    validate: {
+      validator: function(value) {
+        if (value === null || value === undefined) return true;
+        return Number.isFinite(value) && value >= 0;
+      },
+      message: 'Сумма выплаты должна быть положительным числом'
+    }
+  },
+
+  isPaid: {
+    type: Boolean,
+    default: false
   }
 }, {
-  timestamps: true // Автоматически добавляет createdAt и updatedAt
+  timestamps: true, // Автоматически добавляет createdAt и updatedAt
+  collection: 'successfulleads' // Явно указываем имя коллекции
 });
 
 // Индексы для быстрого поиска
