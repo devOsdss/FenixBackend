@@ -78,5 +78,6 @@ const requireActive = (req, res, next) => {
 module.exports = {
   authenticateToken,
   requireRole,
+  authorizeRoles: requireRole, // Alias for better readability
   requireActive
 };

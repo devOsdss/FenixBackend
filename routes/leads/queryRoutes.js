@@ -3,6 +3,9 @@ const Lead = require('../../models/Lead');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { buildLeadsFilter, buildSortObject } = require('../../utils/leadHelpers');
+const { createLogger } = require('../../utils/logger');
+
+const logger = createLogger('LeadsQuery');
 
 /**
  * @route GET /api/leads/statuses
@@ -25,7 +28,7 @@ router.get('/statuses', authenticateToken, async (req, res) => {
       data: filteredStatuses
     });
   } catch (error) {
-    console.error('Error fetching statuses:', error);
+    logger.error('Failed to fetch statuses', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Помилка при отриманні статусів',
@@ -56,7 +59,7 @@ router.get('/utm-sources', authenticateToken, async (req, res) => {
       data: filteredSources
     });
   } catch (error) {
-    console.error('Error fetching UTM sources:', error);
+    logger.error('Failed to fetch UTM sources', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Помилка при отриманні UTM джерел',
@@ -87,7 +90,7 @@ router.get('/departments', authenticateToken, async (req, res) => {
       data: filteredDepartments
     });
   } catch (error) {
-    console.error('Error fetching departments:', error);
+    logger.error('Failed to fetch departments', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Помилка при отриманні відділів',
@@ -115,12 +118,10 @@ router.get('/', authenticateToken, async (req, res) => {
     
     const skip = (pageNum - 1) * limitNum;
     
-    console.log('📋 Final filter object:', JSON.stringify(filter, null, 2));
-    console.log('📄 Pagination:', { page: pageNum, limit: limitNum, skip });
+    logger.debug('Query parameters', { page: pageNum, limit: limitNum, skip, filterKeys: Object.keys(filter) });
     
     // Get total count for pagination
     const total = await Lead.countDocuments(filter);
-    console.log('📊 Total leads matching filter:', total);
     
     // Get leads with pagination
     const leads = await Lead.find(filter)
@@ -134,8 +135,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const hasNextPage = pageNum < totalPages;
     const hasPrevPage = pageNum > 1;
 
-    console.log('📋 Found leads:', leads.length);
-    console.log('📄 Pagination info:', { current: pageNum, pages: totalPages, total, limit: limitNum });
+    logger.debug('Query results', { found: leads.length, total, pages: totalPages });
 
     res.json({
       success: true,
@@ -150,7 +150,7 @@ router.get('/', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching leads:', error);
+    logger.error('Failed to fetch leads', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Помилка при отриманні лідів',
@@ -188,7 +188,7 @@ router.get('/search', authenticateToken, async (req, res) => {
       data: leads
     });
   } catch (error) {
-    console.error('Error searching leads:', error);
+    logger.error('Failed to search leads', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Помилка при пошуку лідів',

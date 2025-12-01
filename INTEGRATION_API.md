@@ -4,7 +4,7 @@
 
 ### Endpoint
 ```
-POST /api/integration
+POST https://fenixbackend.onrender.com/api/integration
 ```
 ### Автентифікація
 apiKey: "2781dd5ea1e0e3c057f737e5ba34e15d90f2182a93f0fcf8fff282d4ea0d9dc3"

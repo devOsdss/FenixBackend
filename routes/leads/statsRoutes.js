@@ -3,6 +3,9 @@ const Lead = require('../../models/Lead');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { buildLeadsFilter } = require('../../utils/leadHelpers');
+const { createLogger } = require('../../utils/logger');
+
+const logger = createLogger('LeadsStats');
 
 /**
  * @route GET /api/leads/stats/overview
@@ -37,7 +40,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get stats error:', error);
+    logger.error('Failed to get stats overview', { error: error.message });
     res.status(500).json({
       success: false,
       message: 'Ошибка при получении статистики'
@@ -52,7 +55,6 @@ router.get('/overview', authenticateToken, async (req, res) => {
  */
 router.get('/status-counts', authenticateToken, async (req, res) => {
   try {
-    console.log("Status-counts: All query parameters:", req.query);
     const { 
       assigned, 
       search,
@@ -135,8 +137,7 @@ router.get('/status-counts', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get status counts error:', error);
-    console.error('Query parameters:', req.query);
+    logger.error('Failed to get status counts', { error: error.message, query: req.query });
     res.status(500).json({
       success: false,
       message: 'Помилка при отриманні кількості лідів',

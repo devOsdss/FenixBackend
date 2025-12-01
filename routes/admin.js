@@ -72,6 +72,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
 // Create new admin
 router.post('/', authenticateToken, async (req, res) => {
+  console.log('🎯🎯🎯 POST /api/admins called - NEW CODE RUNNING 🎯🎯🎯');
+  console.log('📦 Request body:', req.body);
+  
   try {
     const adminData = req.body;
     
@@ -86,11 +89,53 @@ router.post('/', authenticateToken, async (req, res) => {
     
     const newAdmin = new Admin(adminData);
     await newAdmin.save();
+    console.log('✅ Admin created:', newAdmin.login, 'ID:', newAdmin._id, 'Team:', newAdmin.team);
+    
+    // If team is specified, add admin to team
+    if (adminData.team) {
+      console.log('🔍 Looking for team:', adminData.team);
+      const Team = require('../models/Teams');
+      const team = await Team.findOne({ name: adminData.team });
+      
+      if (team) {
+        console.log('✅ Team found:', team.name, 'ID:', team._id);
+        console.log('📋 Current leaderIds:', team.leaderIds.length, 'managerIds:', team.managerIds.length);
+        
+        // Determine if admin should be leader or manager based on role
+        if (adminData.role === 'TeamLead' || adminData.role === 'Admin') {
+          const alreadyExists = team.leaderIds.some(id => id.toString() === newAdmin._id.toString());
+          if (!alreadyExists) {
+            team.leaderIds.push(newAdmin._id);
+            console.log('➕ Added to leaderIds');
+          } else {
+            console.log('ℹ️ Already in leaderIds');
+          }
+        } else if (adminData.role === 'Manager' || adminData.role === 'Reten') {
+          const alreadyExists = team.managerIds.some(id => id.toString() === newAdmin._id.toString());
+          if (!alreadyExists) {
+            team.managerIds.push(newAdmin._id);
+            console.log('➕ Added to managerIds');
+          } else {
+            console.log('ℹ️ Already in managerIds');
+          }
+        }
+        
+        await team.save();
+        console.log('💾 Team saved. New counts - leaderIds:', team.leaderIds.length, 'managerIds:', team.managerIds.length);
+      } else {
+        console.log('❌ Team not found:', adminData.team);
+      }
+    } else {
+      console.log('ℹ️ No team specified for admin');
+    }
+    
+    const responseData = newAdmin.getSafeData();
+    console.log('📤 Sending response:', responseData);
     
     res.status(201).json({
       success: true,
       message: 'Администратор успешно создан',
-      data: newAdmin.getSafeData()
+      data: responseData
     });
 
   } catch (error) {
@@ -123,6 +168,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
       });
     }
     
+    const oldTeam = admin.team;
+    const oldRole = admin.role;
+    
     // Update fields (except password - handle separately)
     const allowedFields = ['login', 'role', 'responsible', 'department', 'password', 'team'];
     allowedFields.forEach(field => {
@@ -132,6 +180,56 @@ router.put('/:id', authenticateToken, async (req, res) => {
     });
     console.log("REQBODY",req.body)
     await admin.save();
+    
+    // Handle team changes
+    const Team = require('../models/Teams');
+    
+    // If team changed, update team memberships
+    if (req.body.team !== undefined && oldTeam !== req.body.team) {
+      // Remove from old team
+      if (oldTeam) {
+        const oldTeamDoc = await Team.findOne({ name: oldTeam });
+        if (oldTeamDoc) {
+          oldTeamDoc.leaderIds = oldTeamDoc.leaderIds.filter(id => id.toString() !== admin._id.toString());
+          oldTeamDoc.managerIds = oldTeamDoc.managerIds.filter(id => id.toString() !== admin._id.toString());
+          await oldTeamDoc.save();
+        }
+      }
+      
+      // Add to new team
+      if (req.body.team) {
+        const newTeamDoc = await Team.findOne({ name: req.body.team });
+        if (newTeamDoc) {
+          const currentRole = req.body.role || admin.role;
+          if (currentRole === 'TeamLead' || currentRole === 'Admin') {
+            if (!newTeamDoc.leaderIds.some(id => id.toString() === admin._id.toString())) {
+              newTeamDoc.leaderIds.push(admin._id);
+            }
+          } else if (currentRole === 'Manager' || currentRole === 'Reten') {
+            if (!newTeamDoc.managerIds.some(id => id.toString() === admin._id.toString())) {
+              newTeamDoc.managerIds.push(admin._id);
+            }
+          }
+          await newTeamDoc.save();
+        }
+      }
+    }
+    // If role changed but team stayed the same, update position in team
+    else if (req.body.role !== undefined && oldRole !== req.body.role && admin.team) {
+      const teamDoc = await Team.findOne({ name: admin.team });
+      if (teamDoc) {
+        teamDoc.leaderIds = teamDoc.leaderIds.filter(id => id.toString() !== admin._id.toString());
+        teamDoc.managerIds = teamDoc.managerIds.filter(id => id.toString() !== admin._id.toString());
+        
+        if (req.body.role === 'TeamLead' || req.body.role === 'Admin') {
+          teamDoc.leaderIds.push(admin._id);
+        } else if (req.body.role === 'Manager' || req.body.role === 'Reten') {
+          teamDoc.managerIds.push(admin._id);
+        }
+        
+        await teamDoc.save();
+      }
+    }
     
     res.json({
       success: true,
@@ -291,6 +389,17 @@ router.delete('/:id', authenticateToken, async (req, res) => {
         success: false,
         message: 'Администратор не найден'
       });
+    }
+    
+    // Remove admin from team if they are in one
+    if (admin.team) {
+      const Team = require('../models/Teams');
+      const team = await Team.findOne({ name: admin.team });
+      if (team) {
+        team.leaderIds = team.leaderIds.filter(id => id.toString() !== admin._id.toString());
+        team.managerIds = team.managerIds.filter(id => id.toString() !== admin._id.toString());
+        await team.save();
+      }
     }
     
     await Admin.findByIdAndDelete(req.params.id);

@@ -1,4 +1,7 @@
 const { Types } = require('mongoose');
+const { createLogger } = require('./logger');
+
+const logger = createLogger('LeadHelpers');
 
 /**
  * Helper function to escape regex special characters
@@ -71,9 +74,236 @@ function createPhoneSearchConditions(search) {
 }
 
 /**
+ * Apply role-based filtering
+ * @private
+ */
+async function applyRoleBasedFilter(filter, { userRole, userId, userTeam }) {
+  if (!userRole || !userId) return;
+
+  logger.debug('Applying role-based filter', { userRole, userId, userTeam });
+
+  if (userRole === 'Manager' || userRole === 'Reten') {
+    filter.assigned = userId;
+    logger.debug('Applied Manager/Reten filter', { assigned: userId });
+    return;
+  }
+
+  if (userRole === 'TeamLead' && userTeam) {
+    try {
+      const Admin = require('../models/Admin');
+      const teamMembers = await Admin.find({ team: userTeam }, '_id').lean();
+      
+      const teamMemberIds = teamMembers.map(admin => admin._id.toString());
+      teamMemberIds.push(userId);
+      
+      filter.assigned = { $in: teamMemberIds };
+      logger.debug('Applied TeamLead filter', { teamSize: teamMemberIds.length });
+    } catch (error) {
+      logger.error('Failed to fetch team members', { error: error.message, userTeam });
+      filter.assigned = userId; // Fallback
+    }
+  }
+}
+
+/**
+ * Apply status filtering with advanced modes
+ * @private
+ */
+function applyStatusFilter(filter, { status, statusMode, statuses }) {
+  if (statusMode && typeof statuses === 'string' && statuses.trim().length > 0) {
+    const list = statuses.split(',').map(s => s.trim()).filter(Boolean);
+    if (statusMode === 'other') {
+      filter.status = { $nin: list };
+    } else if (statusMode === 'only') {
+      filter.status = { $in: list };
+    }
+    return;
+  }
+
+  if (!status) return;
+
+  if (Array.isArray(status)) {
+    filter.status = { $in: status };
+  } else if (typeof status === 'string' && status.includes(',')) {
+    filter.status = { $in: status.split(',') };
+  } else {
+    filter.status = status;
+  }
+}
+
+/**
+ * Apply assigned filter with role intersection
+ * @private
+ */
+function applyAssignedFilter(filter, assigned, userRole) {
+  if (!assigned) return;
+
+  logger.debug('Processing assigned filter', { assigned, userRole, hasExistingFilter: !!filter.assigned });
+
+  let assignedIds = [];
+  if (Array.isArray(assigned)) {
+    assignedIds = assigned;
+  } else if (typeof assigned === 'string' && assigned.includes(',')) {
+    assignedIds = assigned.split(',').map(id => id.trim()).filter(Boolean);
+  } else {
+    assignedIds = [assigned];
+  }
+
+  // For TeamLead, intersect with existing team filter
+  if (userRole === 'TeamLead' && filter.assigned && filter.assigned.$in) {
+    const teamMemberIds = filter.assigned.$in;
+    const intersectedIds = assignedIds.filter(id => teamMemberIds.includes(id));
+    
+    logger.debug('TeamLead filter intersection', {
+      requestedIds: assignedIds.length,
+      teamMemberIds: teamMemberIds.length,
+      intersectedIds: intersectedIds.length
+    });
+    
+    filter.assigned = intersectedIds.length > 0 ? { $in: intersectedIds } : { $in: [] };
+  } else if (!filter.assigned) {
+    filter.assigned = assignedIds.length === 1 ? assignedIds[0] : { $in: assignedIds };
+  }
+}
+
+/**
+ * Apply search filter for name, email, and phone
+ * @private
+ */
+function applySearchFilter(filter, search) {
+  if (!search) return;
+  filter.$or = createPhoneSearchConditions(search);
+}
+
+/**
+ * Apply source description filter with optimized regex
+ * @private
+ */
+function applySourceFilter(filter, sourceDescription) {
+  if (!sourceDescription) return;
+
+  logger.debug('Applying source filter', { sourceDescription, type: typeof sourceDescription });
+
+  let sources = [];
+  if (typeof sourceDescription === 'string' && sourceDescription.trim() !== '') {
+    sources = [sourceDescription];
+  } else if (Array.isArray(sourceDescription) && sourceDescription.length > 0) {
+    sources = sourceDescription.filter(s => s && s.trim() !== '');
+  }
+
+  if (sources.length === 0) return;
+
+  // Optimized: single regex per source instead of 3
+  const sourceConditions = sources.map(source => ({
+    sourceDescription: { $regex: escapeRegex(source), $options: 'i' }
+  }));
+
+  if (filter.$or) {
+    // Combine with existing search conditions
+    const searchConditions = filter.$or;
+    delete filter.$or;
+    filter.$and = [
+      { $or: searchConditions },
+      { $or: sourceConditions }
+    ];
+  } else {
+    filter.$or = sourceConditions;
+  }
+}
+
+/**
+ * Apply team filter by finding team members
+ * @private
+ */
+async function applyTeamFilter(filter, team) {
+  if (!team) return;
+
+  try {
+    const Team = require('../models/Teams');
+    const teamDoc = await Team.findById(team).populate('leaderIds managerIds').lean();
+
+    if (!teamDoc) {
+      logger.warn('Team not found', { teamId: team });
+      filter.assigned = { $in: [] };
+      return;
+    }
+
+    const teamMemberIds = [
+      ...teamDoc.leaderIds.map(leader => leader._id.toString()),
+      ...teamDoc.managerIds.map(manager => manager._id.toString())
+    ];
+
+    if (teamMemberIds.length === 0) {
+      logger.warn('Team has no members', { teamId: team });
+      filter.assigned = { $in: [] };
+      return;
+    }
+
+    // Intersect with existing assigned filter if present
+    if (filter.assigned) {
+      if (filter.assigned.$in) {
+        const intersectedIds = filter.assigned.$in.filter(id => 
+          teamMemberIds.includes(id.toString())
+        );
+        filter.assigned = { $in: intersectedIds };
+      } else {
+        const assignedId = filter.assigned.toString();
+        filter.assigned = teamMemberIds.includes(assignedId) ? assignedId : { $in: [] };
+      }
+    } else {
+      filter.assigned = { $in: teamMemberIds };
+    }
+
+    logger.debug('Applied team filter', { teamId: team, memberCount: teamMemberIds.length });
+  } catch (error) {
+    logger.error('Failed to apply team filter', { error: error.message, teamId: team });
+    filter.assigned = { $in: [] };
+  }
+}
+
+/**
+ * Apply date range filter
+ * @private
+ */
+function applyDateFilter(filter, { dateFrom, dateTo }) {
+  if (!dateFrom && !dateTo) return;
+
+  filter.dateCreate = {};
+
+  if (dateFrom) {
+    try {
+      const startDate = new Date(dateFrom);
+      if (!isNaN(startDate.getTime())) {
+        startDate.setHours(0, 0, 0, 0);
+        filter.dateCreate.$gte = startDate;
+      }
+    } catch (error) {
+      logger.warn('Invalid dateFrom', { dateFrom });
+    }
+  }
+
+  if (dateTo) {
+    try {
+      const endDate = new Date(dateTo);
+      if (!isNaN(endDate.getTime())) {
+        endDate.setHours(23, 59, 59, 999);
+        filter.dateCreate.$lte = endDate;
+      }
+    } catch (error) {
+      logger.warn('Invalid dateTo', { dateTo });
+    }
+  }
+
+  // Remove empty dateCreate filter
+  if (Object.keys(filter.dateCreate).length === 0) {
+    delete filter.dateCreate;
+  }
+}
+
+/**
  * Build filter object based on query parameters
  * @param {Object} query - Request query parameters
- * @returns {Object} MongoDB filter object
+ * @returns {Promise<Object>} MongoDB filter object
  */
 async function buildLeadsFilter(query) {
   const { 
@@ -89,252 +319,36 @@ async function buildLeadsFilter(query) {
     dateTo,
     userRole,
     userTeam,
-    userId
+    userId,
+    statusMode,
+    statuses
   } = query;
 
   const filter = {};
   
-  // Hidden filter
+  // Apply basic filters
   if (hidden !== undefined) {
     filter.hidden = hidden === 'true';
   }
 
-  // Role-based filtering
-  if (userRole && userId) {
-    console.log('🔍 Role-based filtering:', { userRole, userId, userTeam });
-    
-    if (userRole === 'Manager' || userRole === 'Reten') {
-      // Manager/Reten can only see leads assigned to them
-      filter.assigned = userId;
-      console.log('👤 Manager/Reten filter applied:', filter.assigned);
-    } else if (userRole === 'TeamLead' && userTeam) {
-      try {
-        const Admin = require('../models/Admin');
-        console.log('🔎 Looking for team members in team:', userTeam);
-        
-        const teamMembers = await Admin.find({ team: userTeam }, '_id login team');
-        console.log('👥 Found team members:', teamMembers);
-        
-        const teamMemberIds = teamMembers.map(admin => admin._id.toString());
-        teamMemberIds.push(userId); // Include TeamLead's own leads
-        
-        console.log('📋 Team member IDs (including TeamLead):', teamMemberIds);
-        filter.assigned = { $in: teamMemberIds };
-      } catch (error) {
-        console.error('❌ Error fetching team members:', error);
-        // Fallback to showing only own leads
-        filter.assigned = userId;
-      }
-    }
-  }
-  
-  // Advanced status handling: statusMode + statuses
-  const { statusMode, statuses } = query;
-  if (statusMode && typeof statuses === 'string' && statuses.trim().length > 0) {
-    const list = statuses.split(',').map(s => s.trim()).filter(Boolean);
-    if (statusMode === 'other') {
-      filter.status = { $nin: list };
-    } else if (statusMode === 'only') {
-      filter.status = { $in: list };
-    }
-  } else if (status) {
-    if (Array.isArray(status)) {
-      filter.status = { $in: status };
-    } else if (typeof status === 'string' && status.includes(',')) {
-      const statusArray = status.split(',');
-      filter.status = { $in: statusArray };
-    } else {
-      filter.status = status;
-    }
-  }
-
-  // Assigned filter - for TeamLead, intersect with team members
-  if (assigned) {
-    console.log('🎯 Processing assigned filter:', { assigned, userRole, hasExistingAssignedFilter: !!filter.assigned });
-    
-    if (userRole === 'TeamLead' && filter.assigned && filter.assigned.$in) {
-      // For TeamLead, intersect assigned filter with team members
-      let assignedIds = [];
-      if (Array.isArray(assigned)) {
-        assignedIds = assigned;
-      } else if (typeof assigned === 'string' && assigned.includes(',')) {
-        assignedIds = assigned.split(',').map(id => id.trim()).filter(Boolean);
-      } else {
-        assignedIds = [assigned];
-      }
-      
-      // Intersect with team member IDs
-      const teamMemberIds = filter.assigned.$in;
-      const intersectedIds = assignedIds.filter(id => teamMemberIds.includes(id));
-      
-      console.log('🔄 TeamLead filter intersection:', {
-        requestedIds: assignedIds,
-        teamMemberIds,
-        intersectedIds
-      });
-      
-      if (intersectedIds.length > 0) {
-        filter.assigned = { $in: intersectedIds };
-      } else {
-        // If no intersection, show no results
-        filter.assigned = { $in: [] };
-      }
-    } else if (!filter.assigned) {
-      // For other roles or when no role-based filtering was applied
-      if (Array.isArray(assigned)) {
-        filter.assigned = { $in: assigned };
-      } else if (typeof assigned === 'string' && assigned.includes(',')) {
-        filter.assigned = { $in: assigned.split(',').map(id => id.trim()).filter(Boolean) };
-      } else {
-        filter.assigned = assigned;
-      }
-      console.log('✅ Applied assigned filter for non-TeamLead:', filter.assigned);
-    }
-  }
-
-  // Search filter
-  if (search) {
-    filter.$or = createPhoneSearchConditions(search);
-  }
-
-  // Department filter
   if (department) {
     filter.department = department;
   }
 
-  // Team filter - find all team members and filter leads assigned to them
-  if (team) {
-    try {
-      const Team = require('../models/Teams');
-      console.log('🔎 Looking for team:', team);
-      
-      const teamDoc = await Team.findById(team).populate('leaderIds managerIds');
-      
-      if (teamDoc) {
-        // Collect all team member IDs (leaders + managers)
-        const teamMemberIds = [
-          ...teamDoc.leaderIds.map(leader => leader._id.toString()),
-          ...teamDoc.managerIds.map(manager => manager._id.toString())
-        ];
-        
-        console.log('👥 Team members found:', teamMemberIds);
-        
-        if (teamMemberIds.length > 0) {
-          // If there's already an assigned filter, intersect with team members
-          if (filter.assigned) {
-            if (filter.assigned.$in) {
-              // Intersect existing assigned filter with team members
-              const intersectedIds = filter.assigned.$in.filter(id => 
-                teamMemberIds.includes(id.toString())
-              );
-              filter.assigned = { $in: intersectedIds };
-              console.log('🔄 Intersected assigned filter with team members:', intersectedIds);
-            } else {
-              // Single assigned value - check if it's in team
-              const assignedId = filter.assigned.toString();
-              if (teamMemberIds.includes(assignedId)) {
-                filter.assigned = assignedId;
-              } else {
-                filter.assigned = { $in: [] }; // No results
-              }
-            }
-          } else {
-            // No existing assigned filter, use team members
-            filter.assigned = { $in: teamMemberIds };
-            console.log('✅ Applied team filter:', teamMemberIds);
-          }
-        } else {
-          // Team has no members, show no results
-          filter.assigned = { $in: [] };
-          console.log('⚠️ Team has no members');
-        }
-      } else {
-        console.log('⚠️ Team not found');
-        filter.assigned = { $in: [] }; // Team not found, show no results
-      }
-    } catch (error) {
-      console.error('❌ Error fetching team members:', error);
-      filter.assigned = { $in: [] }; // Error, show no results
-    }
-  }
-
-  // Source description filter - supports multiple sources
-  if (sourceDescription) {
-    console.log('📋 sourceDescription received:', sourceDescription, 'type:', typeof sourceDescription);
-    let sources = [];
-    
-    // Handle both string and array formats
-    if (typeof sourceDescription === 'string' && sourceDescription.trim() !== '') {
-      sources = [sourceDescription];
-    } else if (Array.isArray(sourceDescription) && sourceDescription.length > 0) {
-      sources = sourceDescription.filter(s => s && s.trim() !== '');
-    }
-    
-    console.log('📋 Parsed sources:', sources);
-    
-    if (sources.length > 0) {
-      const sourceConditions = sources.flatMap(source => [
-        { sourceDescription: { $regex: `^${escapeRegex(source)}`, $options: 'i' } }, // Exact start match
-        { sourceDescription: source }, // Exact match
-        { sourceDescription: { $regex: escapeRegex(source), $options: 'i' } } // Contains match
-      ]);
-      
-      console.log('📋 Source conditions:', JSON.stringify(sourceConditions, null, 2));
-      
-      if (filter.$or) {
-        // Combine with existing search conditions using $and
-        const searchConditions = filter.$or;
-        delete filter.$or;
-        filter.$and = [
-          { $or: searchConditions },
-          { $or: sourceConditions }
-        ];
-      } else {
-        filter.$or = sourceConditions;
-      }
-    }
-  }
-
-  // UTM source filter
   if (utm_source) {
     filter.utm_source = utm_source;
   }
 
-  // Date range filter
-  if (dateFrom || dateTo) {
-    filter.dateCreate = {};
-    
-    if (dateFrom) {
-      try {
-        const startDate = new Date(dateFrom);
-        if (!isNaN(startDate.getTime())) {
-          startDate.setHours(0, 0, 0, 0);
-          filter.dateCreate.$gte = startDate;
-        }
-      } catch (error) {
-        console.error('Invalid dateFrom:', dateFrom);
-      }
-    }
-    
-    if (dateTo) {
-      try {
-        const endDate = new Date(dateTo);
-        if (!isNaN(endDate.getTime())) {
-          endDate.setHours(23, 59, 59, 999);
-          filter.dateCreate.$lte = endDate;
-        }
-      } catch (error) {
-        console.error('Invalid dateTo:', dateTo);
-      }
-    }
-    
-    // Remove empty dateCreate filter if no valid dates
-    if (Object.keys(filter.dateCreate).length === 0) {
-      delete filter.dateCreate;
-    }
-  }
+  // Apply complex filters in order
+  await applyRoleBasedFilter(filter, { userRole, userId, userTeam });
+  applyStatusFilter(filter, { status, statusMode, statuses });
+  applyAssignedFilter(filter, assigned, userRole);
+  applySearchFilter(filter, search);
+  applySourceFilter(filter, sourceDescription);
+  await applyTeamFilter(filter, team);
+  applyDateFilter(filter, { dateFrom, dateTo });
 
-  console.log('🎯 Final filter object:', JSON.stringify(filter, null, 2));
+  logger.debug('Built filter object', { filterKeys: Object.keys(filter) });
   return filter;
 }
 

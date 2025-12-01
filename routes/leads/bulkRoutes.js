@@ -3,6 +3,9 @@ const Lead = require('../../models/Lead');
 const router = express.Router();
 const { authenticateToken } = require('../../middleware/auth');
 const { isValidObjectId } = require('../../utils/leadHelpers');
+const { createLogger } = require('../../utils/logger');
+
+const logger = createLogger('LeadsBulk');
 
 /**
  * @route DELETE /api/leads/bulk/delete
@@ -40,7 +43,7 @@ router.delete('/delete', authenticateToken, async (req, res) => {
       deletedCount: result.deletedCount
     });
   } catch (error) {
-    console.error('Error bulk deleting leads:', error);
+    logger.error('Failed to bulk delete leads', { error: error.message, idsCount: ids?.length });
     res.status(500).json({
       success: false,
       message: 'Помилка при масовому видаленні лідів',
@@ -93,7 +96,7 @@ router.patch('/status', authenticateToken, async (req, res) => {
       modifiedCount: result.modifiedCount
     });
   } catch (error) {
-    console.error('Error bulk updating status:', error);
+    logger.error('Failed to bulk update status', { error: error.message, idsCount: ids?.length, status });
     res.status(500).json({
       success: false,
       message: 'Помилка при масовому оновленні статусу',
@@ -146,7 +149,7 @@ router.patch('/assign', authenticateToken, async (req, res) => {
       modifiedCount: result.modifiedCount
     });
   } catch (error) {
-    console.error('Error bulk assigning leads:', error);
+    logger.error('Failed to bulk assign leads', { error: error.message, idsCount: ids?.length, assigned });
     res.status(500).json({
       success: false,
       message: 'Помилка при масовому призначенні лідів',
@@ -193,7 +196,7 @@ router.patch('/hide', authenticateToken, async (req, res) => {
       modifiedCount: result.modifiedCount
     });
   } catch (error) {
-    console.error('Error bulk hiding leads:', error);
+    logger.error('Failed to bulk hide leads', { error: error.message, idsCount: ids?.length, hidden });
     res.status(500).json({
       success: false,
       message: 'Помилка при масовій зміні видимості лідів',

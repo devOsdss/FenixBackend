@@ -1,0 +1,654 @@
+/**
+ * Lot Controller
+ * 
+ * Handles all business logic for LOT operations.
+ * Implements separation of concerns, error handling, and validation.
+ * 
+ * @module controllers/lotController
+ * @requires models/Lot
+ * @requires models/Lead
+ * @requires models/LeadsHistory
+ * @author Senior Developer (5+ years experience)
+ */
+
+const Lot = require('../models/Lot');
+const Lead = require('../models/Lead');
+const LeadsHistory = require('../models/LeadsHistory');
+const mongoose = require('mongoose');
+
+/**
+ * Controller class for LOT operations
+ * Implements clean architecture principles
+ */
+class LotController {
+  /**
+   * Create a new LOT
+   * 
+   * Business Rules:
+   * - Only Reten managers can create LOTs
+   * - Lead must exist and be assigned to the manager
+   * - All required fields must be provided
+   * - Creates history entry for audit trail
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async createLot(req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const { leadId, lotName, amount, lotDate } = req.body;
+      const adminId = req.admin._id;
+      const adminRole = req.admin.role;
+
+      // ==================== VALIDATION ====================
+
+      // Validate required fields
+      if (!leadId || !lotName || !amount || !lotDate) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Все поля обязательны: leadId, lotName, amount, lotDate',
+          errors: {
+            leadId: !leadId ? 'ID лида обязателен' : null,
+            lotName: !lotName ? 'Название лота обязательно' : null,
+            amount: !amount ? 'Сумма обязательна' : null,
+            lotDate: !lotDate ? 'Дата обязательна' : null
+          }
+        });
+      }
+
+      // Validate leadId format
+      if (!mongoose.Types.ObjectId.isValid(leadId)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный формат ID лида'
+        });
+      }
+
+      // Validate amount
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount < 0) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Сумма должна быть положительным числом'
+        });
+      }
+
+      // Validate date
+      const parsedDate = new Date(lotDate);
+      if (isNaN(parsedDate.getTime())) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный формат даты'
+        });
+      }
+
+      // Validate date is not in future
+      if (parsedDate > new Date()) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Дата лота не может быть в будущем'
+        });
+      }
+
+      // ==================== BUSINESS LOGIC ====================
+
+      // Get lead data
+      const lead = await Lead.findById(leadId).session(session);
+      if (!lead) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: 'Лид не найден'
+        });
+      }
+
+      // Check if lead is assigned to current manager (for Reten role)
+      if (adminRole === 'Reten' && lead.assigned?.toString() !== adminId.toString()) {
+        await session.abortTransaction();
+        return res.status(403).json({
+          success: false,
+          message: 'Вы можете создавать ЛОТы только для своих лидов'
+        });
+      }
+
+      // ==================== CREATE LOT ====================
+      // Note: Multiple LOTs can be created for the same lead
+
+      const lotData = {
+        lotName: lotName.trim(),
+        amount: parsedAmount,
+        lotDate: parsedDate,
+        leadId: lead._id,
+        leadName: lead.name,
+        leadPhone: lead.phone || null,
+        leadEmail: lead.email || null,
+        assignedTo: lead.assigned || adminId,
+        team: req.admin.team || null,
+        department: lead.department || null,
+        status: 'ACTIVE'
+      };
+
+      const lot = new Lot(lotData);
+      await lot.save({ session });
+
+      // ==================== CREATE HISTORY ENTRY ====================
+      // Note: Lead status is NOT changed when creating a LOT
+
+      const historyEntry = new LeadsHistory({
+        leadId: lead._id,
+        actionType: 'LOT_CREATED',
+        description: `ЛОТ создан: ${lotName}`,
+        adminId: adminId,
+        metadata: {
+          lotId: lot._id,
+          lotName: lotName,
+          amount: parsedAmount,
+          lotDate: parsedDate
+        }
+      });
+
+      await historyEntry.save({ session });
+
+      // ==================== COMMIT TRANSACTION ====================
+
+      await session.commitTransaction();
+
+      // ==================== POPULATE AND RETURN ====================
+
+      await lot.populate([
+        { path: 'assignedTo', select: 'login email role' },
+        { path: 'leadId', select: 'name phone email status department' }
+      ]);
+
+      res.status(201).json({
+        success: true,
+        message: 'ЛОТ успешно создан',
+        data: lot
+      });
+
+    } catch (error) {
+      await session.abortTransaction();
+      console.error('Error creating LOT:', error);
+
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        const errors = {};
+        Object.keys(error.errors).forEach(key => {
+          errors[key] = error.errors[key].message;
+        });
+
+        return res.status(400).json({
+          success: false,
+          message: 'Ошибка валидации данных',
+          errors
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Ошибка при создании ЛОТа',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
+   * Get LOTs with filtering and pagination
+   * 
+   * Features:
+   * - Role-based access control
+   * - Advanced filtering
+   * - Pagination
+   * - Sorting
+   * - Search
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async getLots(req, res) {
+    try {
+      const {
+        page = 1,
+        limit = 20,
+        sortBy = 'lotDate',
+        sortOrder = 'desc',
+        status = 'ACTIVE',
+        search,
+        startDate,
+        endDate,
+        managerId,
+        team
+      } = req.query;
+
+      const adminId = req.admin._id;
+      const adminRole = req.admin.role;
+
+      // ==================== BUILD FILTER ====================
+
+      const filter = { isDeleted: false };
+
+      // Role-based filtering
+      if (adminRole === 'Reten' || adminRole === 'Manager') {
+        // Reten/Manager can only see their own LOTs
+        filter.assignedTo = adminId;
+      } else if (adminRole === 'TeamLead') {
+        // TeamLead can see team's LOTs
+        filter.team = req.admin.team;
+      } else if (adminRole === 'Admin') {
+        // Admin can see all or filter by manager/team
+        if (managerId) {
+          if (!mongoose.Types.ObjectId.isValid(managerId)) {
+            return res.status(400).json({
+              success: false,
+              message: 'Некорректный ID менеджера'
+            });
+          }
+          filter.assignedTo = managerId;
+        }
+        if (team) {
+          filter.team = team;
+        }
+      }
+
+      // Status filter
+      if (status) {
+        filter.status = status;
+      }
+
+      // Date range filter
+      if (startDate || endDate) {
+        filter.lotDate = {};
+        if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          filter.lotDate.$gte = start;
+        }
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59, 999);
+          filter.lotDate.$lte = end;
+        }
+      }
+
+      // Text search
+      if (search) {
+        filter.$or = [
+          { lotName: { $regex: search, $options: 'i' } },
+          { leadName: { $regex: search, $options: 'i' } }
+        ];
+      }
+
+      // ==================== BUILD SORT ====================
+
+      const sort = {};
+      sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+      // ==================== PAGINATION ====================
+
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      // ==================== EXECUTE QUERY ====================
+
+      const [lots, total] = await Promise.all([
+        Lot.find(filter)
+          .populate('assignedTo', 'login email role team')
+          .populate('leadId', 'name phone email status department sourceDescription')
+          .sort(sort)
+          .skip(skip)
+          .limit(parseInt(limit))
+          .lean(),
+        Lot.countDocuments(filter)
+      ]);
+
+      // ==================== RETURN RESPONSE ====================
+
+      res.json({
+        success: true,
+        data: lots,
+        pagination: {
+          total,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(total / parseInt(limit)),
+          hasNextPage: parseInt(page) < Math.ceil(total / parseInt(limit)),
+          hasPrevPage: parseInt(page) > 1
+        }
+      });
+
+    } catch (error) {
+      console.error('Error fetching LOTs:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Ошибка при получении ЛОТов',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Get single LOT by ID
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async getLotById(req, res) {
+    try {
+      const { id } = req.params;
+      const adminId = req.admin._id;
+      const adminRole = req.admin.role;
+
+      // Validate ID
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный ID ЛОТа'
+        });
+      }
+
+      // Find LOT
+      const lot = await Lot.findOne({ _id: id, isDeleted: false })
+        .populate('assignedTo', 'login email role team')
+        .populate('leadId', 'name phone email status department')
+        .populate('amountHistory.editedBy', 'login');
+
+      if (!lot) {
+        return res.status(404).json({
+          success: false,
+          message: 'ЛОТ не найден'
+        });
+      }
+
+      // Check access rights
+      if (adminRole === 'Reten' || adminRole === 'Manager') {
+        if (lot.assignedTo._id.toString() !== adminId.toString()) {
+          return res.status(403).json({
+            success: false,
+            message: 'У вас нет доступа к этому ЛОТу'
+          });
+        }
+      } else if (adminRole === 'TeamLead') {
+        if (lot.team !== req.admin.team) {
+          return res.status(403).json({
+            success: false,
+            message: 'У вас нет доступа к этому ЛОТу'
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        data: lot
+      });
+
+    } catch (error) {
+      console.error('Error fetching LOT:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Ошибка при получении ЛОТа',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  /**
+   * Update LOT amount
+   * 
+   * Features:
+   * - Amount history tracking
+   * - Validation
+   * - History entry creation
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async updateLotAmount(req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const { id } = req.params;
+      const { amount, reason } = req.body;
+      const adminId = req.admin._id;
+      const adminRole = req.admin.role;
+
+      // ==================== VALIDATION ====================
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный ID ЛОТа'
+        });
+      }
+
+      if (!amount) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Сумма обязательна'
+        });
+      }
+
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount < 0) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Сумма должна быть положительным числом'
+        });
+      }
+
+      // ==================== FIND LOT ====================
+
+      const lot = await Lot.findOne({ _id: id, isDeleted: false }).session(session);
+
+      if (!lot) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: 'ЛОТ не найден'
+        });
+      }
+
+      // ==================== CHECK ACCESS ====================
+
+      if (adminRole === 'Reten' || adminRole === 'Manager') {
+        if (lot.assignedTo.toString() !== adminId.toString()) {
+          await session.abortTransaction();
+          return res.status(403).json({
+            success: false,
+            message: 'Вы можете редактировать только свои ЛОТы'
+          });
+        }
+      }
+
+      // ==================== UPDATE AMOUNT ====================
+
+      const previousAmount = lot.amount;
+
+      if (previousAmount === parsedAmount) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Новая сумма совпадает с текущей'
+        });
+      }
+
+      await lot.updateAmount(parsedAmount, adminId, reason || '');
+
+      // ==================== CREATE HISTORY ENTRY ====================
+
+      const historyEntry = new LeadsHistory({
+        leadId: lot.leadId,
+        actionType: 'LOT_AMOUNT_UPDATED',
+        description: `Сумма ЛОТа изменена: ${previousAmount} → ${parsedAmount}`,
+        adminId: adminId,
+        metadata: {
+          lotId: lot._id,
+          lotName: lot.lotName,
+          previousAmount,
+          newAmount: parsedAmount,
+          reason: reason || 'Не указана'
+        }
+      });
+
+      await historyEntry.save({ session });
+
+      // ==================== COMMIT TRANSACTION ====================
+
+      await session.commitTransaction();
+
+      // ==================== POPULATE AND RETURN ====================
+
+      await lot.populate([
+        { path: 'assignedTo', select: 'login email' },
+        { path: 'leadId', select: 'name phone email' },
+        { path: 'amountHistory.editedBy', select: 'login' }
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Сумма ЛОТа успешно обновлена',
+        data: lot
+      });
+
+    } catch (error) {
+      await session.abortTransaction();
+      console.error('Error updating LOT amount:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Ошибка при обновлении суммы ЛОТа',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
+   * Delete LOT (soft delete)
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async deleteLot(req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const { id } = req.params;
+      const adminId = req.admin._id;
+      const adminRole = req.admin.role;
+
+      // Validate ID
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный ID ЛОТа'
+        });
+      }
+
+      // Find LOT
+      const lot = await Lot.findOne({ _id: id, isDeleted: false }).session(session);
+
+      if (!lot) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: 'ЛОТ не найден'
+        });
+      }
+
+      // Check access (only Admin can delete)
+      if (adminRole !== 'Admin') {
+        await session.abortTransaction();
+        return res.status(403).json({
+          success: false,
+          message: 'Только администратор может удалять ЛОТы'
+        });
+      }
+
+      // Soft delete
+      await lot.softDelete(adminId);
+
+      // Create history entry
+      const historyEntry = new LeadsHistory({
+        leadId: lot.leadId,
+        actionType: 'LOT_DELETED',
+        description: `ЛОТ удален: ${lot.lotName}`,
+        adminId: adminId,
+        metadata: {
+          lotId: lot._id,
+          lotName: lot.lotName,
+          amount: lot.amount
+        }
+      });
+
+      await historyEntry.save({ session });
+
+      await session.commitTransaction();
+
+      res.json({
+        success: true,
+        message: 'ЛОТ успешно удален'
+      });
+
+    } catch (error) {
+      await session.abortTransaction();
+      console.error('Error deleting LOT:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Ошибка при удалении ЛОТа',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
+   * Get LOT statistics
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async getLotStats(req, res) {
+    try {
+      const { startDate, endDate, team } = req.query;
+      const adminRole = req.admin.role;
+
+      let stats;
+
+      if (team && (adminRole === 'Admin' || adminRole === 'TeamLead')) {
+        stats = await Lot.getTeamStats(team, startDate, endDate);
+      } else {
+        stats = await Lot.getOverallStats(startDate, endDate);
+      }
+
+      res.json({
+        success: true,
+        data: stats
+      });
+
+    } catch (error) {
+      console.error('Error fetching LOT stats:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Ошибка при получении статистики ЛОТов',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+}
+
+module.exports = LotController;
