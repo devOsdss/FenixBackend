@@ -171,11 +171,20 @@ router.get('/', authenticateToken, async (req, res) => {
     
     // Get successful leads with population
     const successfulLeads = await SuccessfulLead.find(filter)
-      .populate('assigned', 'login')
-      .populate('leadId', 'name phone email department')
+      .populate({
+        path: 'assigned',
+        select: 'login',
+        options: { strictPopulate: false }
+      })
+      .populate({
+        path: 'leadId',
+        select: 'name phone email department',
+        options: { strictPopulate: false }
+      })
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     const total = await SuccessfulLead.countDocuments(filter);
 
@@ -215,8 +224,17 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     const successfulLead = await SuccessfulLead.findById(id)
-      .populate('assigned', 'login')
-      .populate('leadId', 'name phone email department');
+      .populate({
+        path: 'assigned',
+        select: 'login',
+        options: { strictPopulate: false }
+      })
+      .populate({
+        path: 'leadId',
+        select: 'name phone email department',
+        options: { strictPopulate: false }
+      })
+      .lean();
 
     if (!successfulLead) {
       return res.status(404).json({
