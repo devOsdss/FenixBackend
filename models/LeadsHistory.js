@@ -29,6 +29,7 @@ const leadsHistorySchema = new mongoose.Schema({
       'ACTION_CREATED',
       'LOT_CREATED',
       'LOT_AMOUNT_UPDATED',
+      'LOT_PAYOUT_UPDATED',
       'LOT_DELETED'
     ],
     index: true

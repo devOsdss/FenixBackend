@@ -559,6 +559,152 @@ class LotController {
   }
 
   /**
+   * Update LOT payout amount and isPaid status
+   * 
+   * Features:
+   * - Updates payout amount
+   * - Sets isPaid to true when payout is set
+   * - Creates history entry
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async updateLotPayout(req, res) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const { id } = req.params;
+      const { payoutAmount, isPaid } = req.body;
+      const adminId = req.admin._id;
+      const adminRole = req.admin.role;
+
+      // ==================== VALIDATION ====================
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный ID ЛОТа'
+        });
+      }
+
+      if (payoutAmount === undefined && isPaid === undefined) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Укажите сумму выплаты или статус оплаты'
+        });
+      }
+
+      // Validate payoutAmount if provided
+      if (payoutAmount !== undefined) {
+        const parsedPayoutAmount = parseFloat(payoutAmount);
+        if (isNaN(parsedPayoutAmount) || parsedPayoutAmount < 0) {
+          await session.abortTransaction();
+          return res.status(400).json({
+            success: false,
+            message: 'Сумма выплаты должна быть положительным числом'
+          });
+        }
+      }
+
+      // ==================== FIND LOT ====================
+
+      const lot = await Lot.findOne({ _id: id, isDeleted: false }).session(session);
+
+      if (!lot) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: 'ЛОТ не найден'
+        });
+      }
+
+      // ==================== CHECK ACCESS ====================
+      // Only Admin and TeamLead can update payouts
+
+      if (adminRole !== 'Admin' && adminRole !== 'TeamLead') {
+        await session.abortTransaction();
+        return res.status(403).json({
+          success: false,
+          message: 'Только администратор или тимлид может обновлять выплаты'
+        });
+      }
+
+      if (adminRole === 'TeamLead' && lot.team !== req.admin.team) {
+        await session.abortTransaction();
+        return res.status(403).json({
+          success: false,
+          message: 'Вы можете обновлять выплаты только для своей команды'
+        });
+      }
+
+      // ==================== UPDATE PAYOUT ====================
+
+      const previousPayoutAmount = lot.payoutAmount;
+      const previousIsPaid = lot.isPaid;
+
+      if (payoutAmount !== undefined) {
+        lot.payoutAmount = parseFloat(payoutAmount);
+      }
+
+      if (isPaid !== undefined) {
+        lot.isPaid = isPaid === true || isPaid === 'true';
+      }
+
+      await lot.save({ session });
+
+      // ==================== CREATE HISTORY ENTRY ====================
+
+      const historyEntry = new LeadsHistory({
+        leadId: lot.leadId,
+        actionType: 'LOT_PAYOUT_UPDATED',
+        description: `Выплата ЛОТа обновлена: ${previousPayoutAmount || 0} → ${lot.payoutAmount || 0}`,
+        adminId: adminId,
+        metadata: {
+          lotId: lot._id,
+          lotName: lot.lotName,
+          previousPayoutAmount,
+          newPayoutAmount: lot.payoutAmount,
+          previousIsPaid,
+          newIsPaid: lot.isPaid
+        }
+      });
+
+      await historyEntry.save({ session });
+
+      // ==================== COMMIT TRANSACTION ====================
+
+      await session.commitTransaction();
+
+      // ==================== POPULATE AND RETURN ====================
+
+      await lot.populate([
+        { path: 'assignedTo', select: 'login email' },
+        { path: 'leadId', select: 'name phone email' }
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Выплата ЛОТа успешно обновлена',
+        data: lot
+      });
+
+    } catch (error) {
+      await session.abortTransaction();
+      console.error('Error updating LOT payout:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Ошибка при обновлении выплаты ЛОТа',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
    * Delete LOT (soft delete)
    * 
    * @param {Object} req - Express request object

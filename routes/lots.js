@@ -101,6 +101,20 @@ router.patch(
 );
 
 /**
+ * @route   PATCH /api/lots/:id/payout
+ * @desc    Update LOT payout amount and isPaid status
+ * @access  TeamLead, Admin
+ * @param   id - LOT ID
+ * @body    { payoutAmount, isPaid }
+ * @returns { success, message, data }
+ */
+router.patch(
+  '/:id/payout',
+  authorizeRoles(['TeamLead', 'Admin']),
+  LotController.updateLotPayout
+);
+
+/**
  * @route   DELETE /api/lots/:id
  * @desc    Delete LOT (soft delete)
  * @access  Admin only
