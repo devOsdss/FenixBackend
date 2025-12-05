@@ -220,21 +220,33 @@ async function applyTeamFilter(filter, team) {
 
   try {
     const Team = require('../models/Teams');
-    const teamDoc = await Team.findById(team).populate('leaderIds managerIds').lean();
+    
+    // Handle multiple teams
+    const teamIds = Array.isArray(team) ? team : [team];
+    logger.debug('Processing team filter', { teamIds, count: teamIds.length });
+    
+    // Fetch all teams at once
+    const teamDocs = await Team.find({ _id: { $in: teamIds } })
+      .populate('leaderIds managerIds')
+      .lean();
 
-    if (!teamDoc) {
-      logger.warn('Team not found', { teamId: team });
+    if (teamDocs.length === 0) {
+      logger.warn('No teams found', { teamIds });
       filter.assigned = { $in: [] };
       return;
     }
 
-    const teamMemberIds = [
-      ...teamDoc.leaderIds.map(leader => leader._id.toString()),
-      ...teamDoc.managerIds.map(manager => manager._id.toString())
-    ];
+    // Collect all unique team member IDs from all teams
+    const allTeamMemberIds = new Set();
+    teamDocs.forEach(teamDoc => {
+      teamDoc.leaderIds.forEach(leader => allTeamMemberIds.add(leader._id.toString()));
+      teamDoc.managerIds.forEach(manager => allTeamMemberIds.add(manager._id.toString()));
+    });
+
+    const teamMemberIds = Array.from(allTeamMemberIds);
 
     if (teamMemberIds.length === 0) {
-      logger.warn('Team has no members', { teamId: team });
+      logger.warn('Teams have no members', { teamIds });
       filter.assigned = { $in: [] };
       return;
     }
@@ -254,7 +266,11 @@ async function applyTeamFilter(filter, team) {
       filter.assigned = { $in: teamMemberIds };
     }
 
-    logger.debug('Applied team filter', { teamId: team, memberCount: teamMemberIds.length });
+    logger.debug('Applied team filter', { 
+      teamIds, 
+      teamsFound: teamDocs.length,
+      memberCount: teamMemberIds.length 
+    });
   } catch (error) {
     logger.error('Failed to apply team filter', { error: error.message, teamId: team });
     filter.assigned = { $in: [] };
