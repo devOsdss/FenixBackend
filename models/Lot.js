@@ -126,6 +126,14 @@ const lotSchema = new mongoose.Schema({
     default: false
   },
 
+  // Financier Information
+  financier: {
+    type: String,
+    trim: true,
+    default: null,
+    maxlength: [100, 'Имя финансиста не может превышать 100 символов']
+  },
+
   // Edit History for Amount Changes
   amountHistory: [{
     previousAmount: {

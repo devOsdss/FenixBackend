@@ -38,7 +38,7 @@ class LotController {
     session.startTransaction();
 
     try {
-      const { leadId, lotName, amount, lotDate, payoutAmount, isPaid } = req.body;
+      const { leadId, lotName, amount, lotDate, payoutAmount, isPaid, financier } = req.body;
       const adminId = req.admin._id;
       const adminRole = req.admin.role;
 
@@ -156,7 +156,8 @@ class LotController {
         department: lead.department || null,
         status: 'ACTIVE',
         payoutAmount: payoutAmount ? parseFloat(payoutAmount) : null,
-        isPaid: isPaidBoolean
+        isPaid: isPaidBoolean,
+        financier: financier ? financier.trim() : null
       };
 
       const lot = new Lot(lotData);
@@ -260,27 +261,19 @@ class LotController {
 
       const filter = { isDeleted: false };
 
-      // Role-based filtering
-      if (adminRole === 'Reten' || adminRole === 'Manager') {
-        // Reten/Manager can only see their own LOTs
-        filter.assignedTo = adminId;
-      } else if (adminRole === 'TeamLead') {
-        // TeamLead can see team's LOTs
-        filter.team = req.admin.team;
-      } else if (adminRole === 'Admin') {
-        // Admin can see all or filter by manager/team
-        if (managerId) {
-          if (!mongoose.Types.ObjectId.isValid(managerId)) {
-            return res.status(400).json({
-              success: false,
-              message: 'Некорректный ID менеджера'
-            });
-          }
-          filter.assignedTo = managerId;
+      // All users can see all LOTs
+      // Optional filters by manager or team
+      if (managerId) {
+        if (!mongoose.Types.ObjectId.isValid(managerId)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Некорректный ID менеджера'
+          });
         }
-        if (team) {
-          filter.team = team;
-        }
+        filter.assignedTo = managerId;
+      }
+      if (team) {
+        filter.team = team;
       }
 
       // Status filter
@@ -391,23 +384,7 @@ class LotController {
         });
       }
 
-      // Check access rights
-      if (adminRole === 'Reten' || adminRole === 'Manager') {
-        if (lot.assignedTo._id.toString() !== adminId.toString()) {
-          return res.status(403).json({
-            success: false,
-            message: 'У вас нет доступа к этому ЛОТу'
-          });
-        }
-      } else if (adminRole === 'TeamLead') {
-        if (lot.team !== req.admin.team) {
-          return res.status(403).json({
-            success: false,
-            message: 'У вас нет доступа к этому ЛОТу'
-          });
-        }
-      }
-
+      // All users can view any LOT
       res.json({
         success: true,
         data: lot

@@ -115,34 +115,20 @@ router.get('/', authenticateToken, async (req, res) => {
     // Build filter
     const filter = {};
     
-    // Role-based filtering
-    if (userRole === 'Manager' || userRole === 'Reten') {
-      // Manager/Reten can only see their own successful leads
-      if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        filter.assigned = userId;
+    // All users can see all successful leads
+    // Optional filters by assigned or team
+    if (assigned) {
+      if (!mongoose.Types.ObjectId.isValid(assigned)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Некорректный ID ответственного'
+        });
       }
-    } else if (userRole === 'TeamLead') {
-      // TeamLead can see their team's successful leads (filter by team field)
-      const Admin = require('../models/Admin');
-      const teamLead = await Admin.findById(userId).select('team');
-      if (teamLead && teamLead.team) {
-        filter.team = teamLead.team;
-      }
-    } else {
-      // Admin can see all or filter by assigned/team
-      if (assigned) {
-        if (!mongoose.Types.ObjectId.isValid(assigned)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Некорректный ID ответственного'
-          });
-        }
-        filter.assigned = assigned;
-      }
-      
-      if (team) {
-        filter.team = team;
-      }
+      filter.assigned = assigned;
+    }
+    
+    if (team) {
+      filter.team = team;
     }
 
     // Date range filter
