@@ -601,7 +601,7 @@ class LotController {
       // ==================== CHECK ACCESS ====================
       // Only Admin and TeamLead can update payouts
 
-      if (adminRole !== 'Admin' && adminRole !== 'TeamLead') {
+      if (adminRole !== 'Admin' && adminRole !== 'Reten') {
         await session.abortTransaction();
         return res.status(403).json({
           success: false,
