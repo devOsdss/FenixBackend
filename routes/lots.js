@@ -70,7 +70,7 @@ router.get(
  */
 router.get(
   '/stats',
-  authorizeRoles(['TeamLead', 'Admin']),
+  authorizeRoles(['Reten', 'Admin']),
   LotController.getLotStats
 );
 
@@ -110,7 +110,7 @@ router.patch(
  */
 router.patch(
   '/:id/payout',
-  authorizeRoles(['TeamLead', 'Admin']),
+  authorizeRoles(['Reten', 'Admin']),
   LotController.updateLotPayout
 );
 
