@@ -246,7 +246,7 @@ class LotController {
         limit = 20,
         sortBy = 'lotDate',
         sortOrder = 'desc',
-        status = 'ACTIVE',
+        status,
         search,
         startDate,
         endDate,
@@ -315,6 +315,9 @@ class LotController {
 
       // ==================== EXECUTE QUERY ====================
 
+      console.log('🔍 LOT Query Filter:', JSON.stringify(filter, null, 2));
+      console.log('📄 LOT Query Params:', { page, limit, skip, sortBy, sortOrder });
+
       const [lots, total] = await Promise.all([
         Lot.find(filter)
           .populate('assignedTo', 'login email role team')
@@ -325,6 +328,8 @@ class LotController {
           .lean(),
         Lot.countDocuments(filter)
       ]);
+
+      console.log('✅ LOT Query Results:', { found: lots.length, total, pages: Math.ceil(total / parseInt(limit)) });
 
       // ==================== RETURN RESPONSE ====================
 
