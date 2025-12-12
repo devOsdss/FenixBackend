@@ -102,6 +102,11 @@ const leadSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  
+  teamLeadAssignedAt: {
+    type: Date,
+    default: null
   }
 }, {
   collection: 'customers', // Explicitly set collection name

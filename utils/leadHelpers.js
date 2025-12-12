@@ -213,6 +213,7 @@ function applySourceFilter(filter, sourceDescription) {
 
 /**
  * Apply team filter by finding team members
+ * Supports both new Teams collection and legacy team field in Admin
  * @private
  */
 async function applyTeamFilter(filter, team) {
@@ -220,33 +221,69 @@ async function applyTeamFilter(filter, team) {
 
   try {
     const Team = require('../models/Teams');
+    const Admin = require('../models/Admin');
+    const { Types } = require('mongoose');
     
     // Handle multiple teams
     const teamIds = Array.isArray(team) ? team : [team];
     logger.debug('Processing team filter', { teamIds, count: teamIds.length });
     
-    // Fetch all teams at once
-    const teamDocs = await Team.find({ _id: { $in: teamIds } })
-      .populate('leaderIds managerIds')
-      .lean();
+    let teamMemberIds = [];
+    
+    // Check if all teamIds are valid ObjectIds
+    const allValidObjectIds = teamIds.every(id => Types.ObjectId.isValid(id) && id.length === 24);
+    
+    if (allValidObjectIds) {
+      // Try new Teams collection (ObjectId-based)
+      logger.debug('Team IDs are valid ObjectIds, checking Teams collection');
+      
+      const teamDocs = await Team.find({ _id: { $in: teamIds } })
+        .populate('leaderIds managerIds')
+        .lean();
 
-    if (teamDocs.length === 0) {
-      logger.warn('No teams found', { teamIds });
-      filter.assigned = { $in: [] };
-      return;
+      if (teamDocs.length > 0) {
+        // New system: collect team members from Teams collection
+        const allTeamMemberIds = new Set();
+        teamDocs.forEach(teamDoc => {
+          teamDoc.leaderIds.forEach(leader => {
+            const id = typeof leader._id === 'string' ? leader._id : leader._id.toString();
+            allTeamMemberIds.add(id);
+          });
+          teamDoc.managerIds.forEach(manager => {
+            const id = typeof manager._id === 'string' ? manager._id : manager._id.toString();
+            allTeamMemberIds.add(id);
+          });
+        });
+        teamMemberIds = Array.from(allTeamMemberIds);
+        
+        logger.debug('Found teams in Teams collection', { 
+          teamsFound: teamDocs.length,
+          memberCount: teamMemberIds.length,
+          sampleIds: teamMemberIds.slice(0, 3)
+        });
+      }
+    }
+    
+    // If no teams found in new system or IDs are not ObjectIds, try legacy system
+    if (teamMemberIds.length === 0) {
+      // Legacy system: find admins by team field (string)
+      logger.debug('Using legacy team field (string-based)');
+      
+      const admins = await Admin.find({ team: { $in: teamIds } }, '_id').lean();
+      teamMemberIds = admins.map(admin => {
+        const id = typeof admin._id === 'string' ? admin._id : admin._id.toString();
+        return id;
+      });
+      
+      logger.debug('Found admins with legacy team field', { 
+        adminCount: teamMemberIds.length,
+        teams: teamIds,
+        sampleIds: teamMemberIds.slice(0, 3)
+      });
     }
 
-    // Collect all unique team member IDs from all teams
-    const allTeamMemberIds = new Set();
-    teamDocs.forEach(teamDoc => {
-      teamDoc.leaderIds.forEach(leader => allTeamMemberIds.add(leader._id.toString()));
-      teamDoc.managerIds.forEach(manager => allTeamMemberIds.add(manager._id.toString()));
-    });
-
-    const teamMemberIds = Array.from(allTeamMemberIds);
-
     if (teamMemberIds.length === 0) {
-      logger.warn('Teams have no members', { teamIds });
+      logger.warn('No team members found', { teamIds });
       filter.assigned = { $in: [] };
       return;
     }
@@ -268,7 +305,6 @@ async function applyTeamFilter(filter, team) {
 
     logger.debug('Applied team filter', { 
       teamIds, 
-      teamsFound: teamDocs.length,
       memberCount: teamMemberIds.length 
     });
   } catch (error) {
@@ -337,7 +373,10 @@ async function buildLeadsFilter(query) {
     userTeam,
     userId,
     statusMode,
-    statuses
+    statuses,
+    hasTeamLeadAssignedAt,
+    teamLeadAssignedAtStart,
+    teamLeadAssignedAtEnd
   } = query;
 
   const filter = {};
@@ -353,6 +392,28 @@ async function buildLeadsFilter(query) {
 
   if (utm_source) {
     filter.utm_source = utm_source;
+  }
+
+  // Filter by teamLeadAssignedAt
+  if (hasTeamLeadAssignedAt === 'true' || hasTeamLeadAssignedAt === true) {
+    filter.teamLeadAssignedAt = { $exists: true, $ne: null };
+  }
+
+  // Filter by teamLeadAssignedAt date range
+  if (teamLeadAssignedAtStart || teamLeadAssignedAtEnd) {
+    filter.teamLeadAssignedAt = filter.teamLeadAssignedAt || {};
+    
+    if (teamLeadAssignedAtStart) {
+      const startDate = new Date(teamLeadAssignedAtStart);
+      startDate.setHours(0, 0, 0, 0);
+      filter.teamLeadAssignedAt.$gte = startDate;
+    }
+    
+    if (teamLeadAssignedAtEnd) {
+      const endDate = new Date(teamLeadAssignedAtEnd);
+      endDate.setHours(23, 59, 59, 999);
+      filter.teamLeadAssignedAt.$lte = endDate;
+    }
   }
 
   // Apply complex filters in order

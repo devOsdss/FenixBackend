@@ -136,6 +136,17 @@ router.put('/:id', authenticateToken, async (req, res) => {
       updateData.normalizedPhone = updateData.phone.replace(/\D/g, '');
     }
 
+    // Check if assigned is changing and new assignee is TeamLead or Manager
+    if (updateData.assigned && updateData.assigned !== originalLead.assigned) {
+      const Admin = require('../../models/Admin');
+      const newAssignee = await Admin.findById(updateData.assigned);
+      
+      if (newAssignee && (newAssignee.role === 'TeamLead' || newAssignee.role === 'Manager')) {
+        updateData.teamLeadAssignedAt = new Date();
+        console.log('✅ TeamLead/Manager assigned - teamLeadAssignedAt set for lead:', id);
+      }
+    }
+
     const updatedLead = await Lead.findByIdAndUpdate(
       id,
       { $set: updateData },
