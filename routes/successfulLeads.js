@@ -164,7 +164,7 @@ router.get('/', authenticateToken, async (req, res) => {
       })
       .populate({
         path: 'leadId',
-        select: 'name phone email department',
+        select: 'name phone email department sourceDescription',
         options: { strictPopulate: false }
       })
       .sort(sort)
@@ -217,7 +217,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       })
       .populate({
         path: 'leadId',
-        select: 'name phone email department',
+        select: 'name phone email department sourceDescription',
         options: { strictPopulate: false }
       })
       .lean();
