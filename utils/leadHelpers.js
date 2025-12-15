@@ -89,8 +89,28 @@ async function applyRoleBasedFilter(filter, { userRole, userId, userTeam }) {
     return;
   }
 
-  // No restrictions for other teams - they see all leads
-  logger.debug('No role-based filter applied - user can see all leads', { userTeam, userRole });
+  // Standard role-based filtering for other teams
+  if (userRole === 'Manager' || userRole === 'Reten') {
+    filter.assigned = userId;
+    logger.debug('Applied Manager/Reten filter', { assigned: userId });
+    return;
+  }
+
+  if (userRole === 'TeamLead' && userTeam) {
+    try {
+      const Admin = require('../models/Admin');
+      const teamMembers = await Admin.find({ team: userTeam }, '_id').lean();
+      
+      const teamMemberIds = teamMembers.map(admin => admin._id.toString());
+      teamMemberIds.push(userId);
+      
+      filter.assigned = { $in: teamMemberIds };
+      logger.debug('Applied TeamLead filter', { teamSize: teamMemberIds.length });
+    } catch (error) {
+      logger.error('Failed to fetch team members', { error: error.message, userTeam });
+      filter.assigned = userId; // Fallback
+    }
+  }
 }
 
 /**
