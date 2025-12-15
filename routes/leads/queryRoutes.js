@@ -112,9 +112,17 @@ router.get('/', authenticateToken, async (req, res) => {
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20)); // Limit max to 100
     
+    // Add user info to query for role-based filtering
+    const queryWithUser = {
+      ...req.query,
+      userRole: req.admin?.role,
+      userId: req.admin?._id?.toString(),
+      userTeam: req.admin?.team
+    };
+    
     // Build filter and sort objects
-    const filter = await buildLeadsFilter(req.query);
-    const sort = buildSortObject(req.query);
+    const filter = await buildLeadsFilter(queryWithUser);
+    const sort = buildSortObject(queryWithUser);
     
     const skip = (pageNum - 1) * limitNum;
     

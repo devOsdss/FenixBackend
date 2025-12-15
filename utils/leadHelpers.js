@@ -82,27 +82,46 @@ async function applyRoleBasedFilter(filter, { userRole, userId, userTeam }) {
 
   logger.debug('Applying role-based filter', { userRole, userId, userTeam });
 
-  if (userRole === 'Manager' || userRole === 'Reten') {
-    filter.assigned = userId;
-    logger.debug('Applied Manager/Reten filter', { assigned: userId });
+  // Team Fantom restriction: only Team Fantom has restrictions
+  if (userTeam === 'Team Fantom') {
+    if (userRole === 'TeamLead') {
+      // TeamLead sees all team members' leads
+      try {
+        const Admin = require('../models/Admin');
+        const teamMembers = await Admin.find({ team: userTeam }, '_id').lean();
+        
+        const teamMemberIds = teamMembers.map(admin => admin._id.toString());
+        teamMemberIds.push(userId);
+        
+        filter.assigned = { $in: teamMemberIds };
+        logger.debug('Applied Team Fantom TeamLead filter', { teamSize: teamMemberIds.length });
+      } catch (error) {
+        logger.error('Failed to fetch Team Fantom members', { error: error.message, userTeam });
+        filter.assigned = userId; // Fallback
+      }
+    } else {
+      // Managers and others see only their own leads
+      filter.assigned = userId;
+      logger.debug('Applied Team Fantom Manager restriction', { assigned: userId });
+    }
     return;
   }
 
-  if (userRole === 'TeamLead' && userTeam) {
-    try {
-      const Admin = require('../models/Admin');
-      const teamMembers = await Admin.find({ team: userTeam }, '_id').lean();
-      
-      const teamMemberIds = teamMembers.map(admin => admin._id.toString());
-      teamMemberIds.push(userId);
-      
-      filter.assigned = { $in: teamMemberIds };
-      logger.debug('Applied TeamLead filter', { teamSize: teamMemberIds.length });
-    } catch (error) {
-      logger.error('Failed to fetch team members', { error: error.message, userTeam });
-      filter.assigned = userId; // Fallback
+  // All other teams: exclude Team Fantom leads
+  try {
+    const Admin = require('../models/Admin');
+    const fantomMembers = await Admin.find({ team: 'Team Fantom' }, '_id').lean();
+    const fantomMemberIds = fantomMembers.map(admin => admin._id.toString());
+    
+    if (fantomMemberIds.length > 0) {
+      filter.assigned = { $nin: fantomMemberIds };
+      logger.debug('Excluded Team Fantom leads from other teams', { excludedCount: fantomMemberIds.length });
     }
+  } catch (error) {
+    logger.error('Failed to fetch Team Fantom members for exclusion', { error: error.message });
   }
+  
+  logger.debug('Applied filter excluding Team Fantom', { userTeam, userRole });
 }
 
 /**

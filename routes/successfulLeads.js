@@ -115,20 +115,50 @@ router.get('/', authenticateToken, async (req, res) => {
     // Build filter
     const filter = {};
     
-    // All users can see all successful leads
-    // Optional filters by assigned or team
-    if (assigned) {
-      if (!mongoose.Types.ObjectId.isValid(assigned)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Некорректный ID ответственного'
-        });
+    // Team Fantom restriction: only Team Fantom has restrictions
+    if (req.admin?.team === 'Team Fantom') {
+      if (req.admin?.role === 'TeamLead') {
+        // TeamLead sees all team members' leads
+        const Admin = require('../models/Admin');
+        const teamMembers = await Admin.find({ team: 'Team Fantom' }, '_id').lean();
+        const teamMemberIds = teamMembers.map(admin => admin._id.toString());
+        filter.assigned = { $in: teamMemberIds };
+        console.log('🔒 Team Fantom TeamLead filter applied:', { teamSize: teamMemberIds.length });
+      } else {
+        // Managers see only their own leads
+        filter.assigned = req.admin._id;
+        console.log('🔒 Team Fantom Manager restriction applied:', { adminId: req.admin._id });
       }
-      filter.assigned = assigned;
-    }
-    
-    if (team) {
-      filter.team = team;
+    } else {
+      // All other teams: exclude Team Fantom leads
+      const Admin = require('../models/Admin');
+      const fantomMembers = await Admin.find({ team: 'Team Fantom' }, '_id').lean();
+      const fantomMemberIds = fantomMembers.map(admin => admin._id.toString());
+      
+      if (fantomMemberIds.length > 0) {
+        filter.assigned = { $nin: fantomMemberIds };
+        console.log('🔒 Excluded Team Fantom leads:', { excludedCount: fantomMemberIds.length });
+      }
+      
+      // Optional filters by assigned or team
+      if (assigned) {
+        if (!mongoose.Types.ObjectId.isValid(assigned)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Некорректный ID ответственного'
+          });
+        }
+        // Combine with existing filter
+        if (filter.assigned && filter.assigned.$nin) {
+          filter.assigned = { $nin: fantomMemberIds, $eq: assigned };
+        } else {
+          filter.assigned = assigned;
+        }
+      }
+      
+      if (team) {
+        filter.team = team;
+      }
     }
 
     // Date range filter
