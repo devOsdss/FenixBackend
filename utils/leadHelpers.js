@@ -82,46 +82,15 @@ async function applyRoleBasedFilter(filter, { userRole, userId, userTeam }) {
 
   logger.debug('Applying role-based filter', { userRole, userId, userTeam });
 
-  // Team Fantom restriction: only Team Fantom has restrictions
+  // Team Fantom restriction: all members can only see their own leads
   if (userTeam === 'Team Fantom') {
-    if (userRole === 'TeamLead') {
-      // TeamLead sees all team members' leads
-      try {
-        const Admin = require('../models/Admin');
-        const teamMembers = await Admin.find({ team: userTeam }, '_id').lean();
-        
-        const teamMemberIds = teamMembers.map(admin => admin._id.toString());
-        teamMemberIds.push(userId);
-        
-        filter.assigned = { $in: teamMemberIds };
-        logger.debug('Applied Team Fantom TeamLead filter', { teamSize: teamMemberIds.length });
-      } catch (error) {
-        logger.error('Failed to fetch Team Fantom members', { error: error.message, userTeam });
-        filter.assigned = userId; // Fallback
-      }
-    } else {
-      // Managers and others see only their own leads
-      filter.assigned = userId;
-      logger.debug('Applied Team Fantom Manager restriction', { assigned: userId });
-    }
+    filter.assigned = userId;
+    logger.debug('Applied Team Fantom restriction', { assigned: userId });
     return;
   }
 
-  // All other teams: exclude Team Fantom leads
-  try {
-    const Admin = require('../models/Admin');
-    const fantomMembers = await Admin.find({ team: 'Team Fantom' }, '_id').lean();
-    const fantomMemberIds = fantomMembers.map(admin => admin._id.toString());
-    
-    if (fantomMemberIds.length > 0) {
-      filter.assigned = { $nin: fantomMemberIds };
-      logger.debug('Excluded Team Fantom leads from other teams', { excludedCount: fantomMemberIds.length });
-    }
-  } catch (error) {
-    logger.error('Failed to fetch Team Fantom members for exclusion', { error: error.message });
-  }
-  
-  logger.debug('Applied filter excluding Team Fantom', { userTeam, userRole });
+  // No restrictions for other teams - they see all leads
+  logger.debug('No role-based filter applied - user can see all leads', { userTeam, userRole });
 }
 
 /**

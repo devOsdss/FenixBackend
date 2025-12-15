@@ -115,31 +115,12 @@ router.get('/', authenticateToken, async (req, res) => {
     // Build filter
     const filter = {};
     
-    // Team Fantom restriction: only Team Fantom has restrictions
+    // Team Fantom restriction: members can only see their own leads
     if (req.admin?.team === 'Team Fantom') {
-      if (req.admin?.role === 'TeamLead') {
-        // TeamLead sees all team members' leads
-        const Admin = require('../models/Admin');
-        const teamMembers = await Admin.find({ team: 'Team Fantom' }, '_id').lean();
-        const teamMemberIds = teamMembers.map(admin => admin._id.toString());
-        filter.assigned = { $in: teamMemberIds };
-        console.log('🔒 Team Fantom TeamLead filter applied:', { teamSize: teamMemberIds.length });
-      } else {
-        // Managers see only their own leads
-        filter.assigned = req.admin._id;
-        console.log('🔒 Team Fantom Manager restriction applied:', { adminId: req.admin._id });
-      }
+      filter.assigned = req.admin._id;
+      console.log('🔒 Team Fantom restriction applied:', { adminId: req.admin._id });
     } else {
-      // All other teams: exclude Team Fantom leads
-      const Admin = require('../models/Admin');
-      const fantomMembers = await Admin.find({ team: 'Team Fantom' }, '_id').lean();
-      const fantomMemberIds = fantomMembers.map(admin => admin._id.toString());
-      
-      if (fantomMemberIds.length > 0) {
-        filter.assigned = { $nin: fantomMemberIds };
-        console.log('🔒 Excluded Team Fantom leads:', { excludedCount: fantomMemberIds.length });
-      }
-      
+      // All other users can see all successful leads
       // Optional filters by assigned or team
       if (assigned) {
         if (!mongoose.Types.ObjectId.isValid(assigned)) {
@@ -148,12 +129,7 @@ router.get('/', authenticateToken, async (req, res) => {
             message: 'Некорректный ID ответственного'
           });
         }
-        // Combine with existing filter
-        if (filter.assigned && filter.assigned.$nin) {
-          filter.assigned = { $nin: fantomMemberIds, $eq: assigned };
-        } else {
-          filter.assigned = assigned;
-        }
+        filter.assigned = assigned;
       }
       
       if (team) {
