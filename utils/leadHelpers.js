@@ -334,7 +334,8 @@ function applyDateFilter(filter, { dateFrom, dateTo }) {
     try {
       const startDate = new Date(dateFrom);
       if (!isNaN(startDate.getTime())) {
-        startDate.setHours(0, 0, 0, 0);
+        // Use UTC methods to avoid timezone issues
+        startDate.setUTCHours(0, 0, 0, 0);
         filter.dateCreate.$gte = startDate;
       }
     } catch (error) {
@@ -346,7 +347,8 @@ function applyDateFilter(filter, { dateFrom, dateTo }) {
     try {
       const endDate = new Date(dateTo);
       if (!isNaN(endDate.getTime())) {
-        endDate.setHours(23, 59, 59, 999);
+        // Use UTC methods to avoid timezone issues
+        endDate.setUTCHours(23, 59, 59, 999);
         filter.dateCreate.$lte = endDate;
       }
     } catch (error) {
@@ -413,13 +415,13 @@ async function buildLeadsFilter(query) {
     
     if (teamLeadAssignedAtStart) {
       const startDate = new Date(teamLeadAssignedAtStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       filter.teamLeadAssignedAt.$gte = startDate;
     }
     
     if (teamLeadAssignedAtEnd) {
       const endDate = new Date(teamLeadAssignedAtEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       filter.teamLeadAssignedAt.$lte = endDate;
     }
   }

@@ -286,12 +286,12 @@ class LotController {
         filter.lotDate = {};
         if (startDate) {
           const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
+          start.setUTCHours(0, 0, 0, 0);
           filter.lotDate.$gte = start;
         }
         if (endDate) {
           const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
+          end.setUTCHours(23, 59, 59, 999);
           filter.lotDate.$lte = end;
         }
       }
