@@ -137,16 +137,29 @@ router.get('/', authenticateToken, async (req, res) => {
       }
     }
 
-    // Date range filter
+    // Date range filter (UTC+2)
     if (startDate || endDate) {
       filter.closeDate = {};
+      const KYIV_OFFSET_HOURS = 2;
+      
       if (startDate) {
-        const start = new Date(startDate);
+        const date = new Date(startDate);
+        const start = new Date(Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          0 - KYIV_OFFSET_HOURS, 0, 0, 0
+        ));
         filter.closeDate.$gte = start;
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setTime(end.getTime() + (24 * 60 * 60 * 1000) - 1);
+        const date = new Date(endDate);
+        const end = new Date(Date.UTC(
+          date.getUTCFullYear(),
+          date.getUTCMonth(),
+          date.getUTCDate(),
+          23 - KYIV_OFFSET_HOURS, 59, 59, 999
+        ));
         filter.closeDate.$lte = end;
       }
     }

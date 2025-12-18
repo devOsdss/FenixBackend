@@ -323,24 +323,34 @@ async function applyTeamFilter(filter, team) {
 
 /**
  * Apply date range filter
- * Frontend sends dates in ISO format from user's local timezone.
- * We use the date as-is to match the user's local day.
+ * Filter by UTC+2 day (Kyiv timezone)
+ * When user selects 08.12.2025, we search from 07.12 22:00 UTC to 08.12 21:59:59 UTC
  * @private
  */
 function applyDateFilter(filter, { dateFrom, dateTo }) {
   if (!dateFrom && !dateTo) return;
 
   filter.dateCreate = {};
+  const KYIV_OFFSET_HOURS = 2; // UTC+2
 
   if (dateFrom) {
     try {
-      // Use the date as sent from frontend (already in ISO format with timezone)
-      const startDate = new Date(dateFrom);
+      // Parse date and set to start of day in UTC+2, then convert to UTC
+      const date = new Date(dateFrom);
+      const startDate = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        0 - KYIV_OFFSET_HOURS, // Subtract 2 hours to get UTC time
+        0, 0, 0
+      ));
+      
       if (!isNaN(startDate.getTime())) {
         filter.dateCreate.$gte = startDate;
-        logger.info('Date filter applied', { 
+        logger.info('Date filter applied (UTC+2)', { 
           dateFrom, 
-          startDate: startDate.toISOString() 
+          startDate: startDate.toISOString(),
+          kyivTime: `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}-${String(date.getUTCDate()).padStart(2,'0')} 00:00 UTC+2`
         });
       }
     } catch (error) {
@@ -350,15 +360,22 @@ function applyDateFilter(filter, { dateFrom, dateTo }) {
 
   if (dateTo) {
     try {
-      // Use the date as sent from frontend, but set to end of day
-      const endDate = new Date(dateTo);
+      // Parse date and set to end of day in UTC+2, then convert to UTC
+      const date = new Date(dateTo);
+      const endDate = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        23 - KYIV_OFFSET_HOURS, // Subtract 2 hours to get UTC time
+        59, 59, 999
+      ));
+      
       if (!isNaN(endDate.getTime())) {
-        // Add 24 hours minus 1ms to get end of day in the same timezone
-        endDate.setTime(endDate.getTime() + (24 * 60 * 60 * 1000) - 1);
         filter.dateCreate.$lte = endDate;
-        logger.info('Date filter applied', { 
+        logger.info('Date filter applied (UTC+2)', { 
           dateTo, 
-          endDate: endDate.toISOString() 
+          endDate: endDate.toISOString(),
+          kyivTime: `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}-${String(date.getUTCDate()).padStart(2,'0')} 23:59 UTC+2`
         });
       }
     } catch (error) {
@@ -419,18 +436,30 @@ async function buildLeadsFilter(query) {
     filter.teamLeadAssignedAt = { $exists: true, $ne: null };
   }
 
-  // Filter by teamLeadAssignedAt date range
+  // Filter by teamLeadAssignedAt date range (UTC+2)
   if (teamLeadAssignedAtStart || teamLeadAssignedAtEnd) {
     filter.teamLeadAssignedAt = filter.teamLeadAssignedAt || {};
+    const KYIV_OFFSET_HOURS = 2;
     
     if (teamLeadAssignedAtStart) {
-      const startDate = new Date(teamLeadAssignedAtStart);
+      const date = new Date(teamLeadAssignedAtStart);
+      const startDate = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        0 - KYIV_OFFSET_HOURS, 0, 0, 0
+      ));
       filter.teamLeadAssignedAt.$gte = startDate;
     }
     
     if (teamLeadAssignedAtEnd) {
-      const endDate = new Date(teamLeadAssignedAtEnd);
-      endDate.setTime(endDate.getTime() + (24 * 60 * 60 * 1000) - 1);
+      const date = new Date(teamLeadAssignedAtEnd);
+      const endDate = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        23 - KYIV_OFFSET_HOURS, 59, 59, 999
+      ));
       filter.teamLeadAssignedAt.$lte = endDate;
     }
   }
