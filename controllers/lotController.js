@@ -564,6 +564,11 @@ class LotController {
    * @param {Object} res - Express response object
    */
   static async updateLotPayout(req, res) {
+    console.log('=== updateLotPayout called ===');
+    console.log('Params:', req.params);
+    console.log('Body:', req.body);
+    console.log('Admin:', req.admin ? { id: req.admin._id, role: req.admin.role } : 'NO ADMIN');
+    
     const session = await mongoose.startSession();
     session.startTransaction();
 

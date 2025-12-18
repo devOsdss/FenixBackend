@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware - Allow all origins temporarily for debugging
 app.use(cors({
   origin: true, // Allow all origins
-  methods: ['GET','POST','PUT','DELETE','OPTIONS','PATH'],
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
