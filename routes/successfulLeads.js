@@ -142,12 +142,11 @@ router.get('/', authenticateToken, async (req, res) => {
       filter.closeDate = {};
       if (startDate) {
         const start = new Date(startDate);
-        start.setUTCHours(0, 0, 0, 0);
         filter.closeDate.$gte = start;
       }
       if (endDate) {
         const end = new Date(endDate);
-        end.setUTCHours(23, 59, 59, 999);
+        end.setTime(end.getTime() + (24 * 60 * 60 * 1000) - 1);
         filter.closeDate.$lte = end;
       }
     }

@@ -64,11 +64,11 @@ actionSchema.statics.getOverdueActions = function() {
 };
 
 actionSchema.statics.getTodayActions = function() {
-  const today = new Date();
-  const startOfDay = new Date(today);
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const endOfDay = new Date(today);
-  endOfDay.setUTCHours(23, 59, 59, 999);
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
   
   return this.find({
     planDate: { $gte: startOfDay, $lte: endOfDay }

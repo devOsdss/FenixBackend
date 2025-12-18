@@ -323,6 +323,8 @@ async function applyTeamFilter(filter, team) {
 
 /**
  * Apply date range filter
+ * Frontend sends dates in ISO format from user's local timezone.
+ * We use the date as-is to match the user's local day.
  * @private
  */
 function applyDateFilter(filter, { dateFrom, dateTo }) {
@@ -332,27 +334,35 @@ function applyDateFilter(filter, { dateFrom, dateTo }) {
 
   if (dateFrom) {
     try {
+      // Use the date as sent from frontend (already in ISO format with timezone)
       const startDate = new Date(dateFrom);
       if (!isNaN(startDate.getTime())) {
-        // Use UTC methods to avoid timezone issues
-        startDate.setUTCHours(0, 0, 0, 0);
         filter.dateCreate.$gte = startDate;
+        logger.info('Date filter applied', { 
+          dateFrom, 
+          startDate: startDate.toISOString() 
+        });
       }
     } catch (error) {
-      logger.warn('Invalid dateFrom', { dateFrom });
+      logger.warn('Invalid dateFrom', { dateFrom, error: error.message });
     }
   }
 
   if (dateTo) {
     try {
+      // Use the date as sent from frontend, but set to end of day
       const endDate = new Date(dateTo);
       if (!isNaN(endDate.getTime())) {
-        // Use UTC methods to avoid timezone issues
-        endDate.setUTCHours(23, 59, 59, 999);
+        // Add 24 hours minus 1ms to get end of day in the same timezone
+        endDate.setTime(endDate.getTime() + (24 * 60 * 60 * 1000) - 1);
         filter.dateCreate.$lte = endDate;
+        logger.info('Date filter applied', { 
+          dateTo, 
+          endDate: endDate.toISOString() 
+        });
       }
     } catch (error) {
-      logger.warn('Invalid dateTo', { dateTo });
+      logger.warn('Invalid dateTo', { dateTo, error: error.message });
     }
   }
 
@@ -415,13 +425,12 @@ async function buildLeadsFilter(query) {
     
     if (teamLeadAssignedAtStart) {
       const startDate = new Date(teamLeadAssignedAtStart);
-      startDate.setUTCHours(0, 0, 0, 0);
       filter.teamLeadAssignedAt.$gte = startDate;
     }
     
     if (teamLeadAssignedAtEnd) {
       const endDate = new Date(teamLeadAssignedAtEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
+      endDate.setTime(endDate.getTime() + (24 * 60 * 60 * 1000) - 1);
       filter.teamLeadAssignedAt.$lte = endDate;
     }
   }

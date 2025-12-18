@@ -126,7 +126,15 @@ router.get('/', authenticateToken, async (req, res) => {
     
     const skip = (pageNum - 1) * limitNum;
     
-    logger.debug('Query parameters', { page: pageNum, limit: limitNum, skip, filterKeys: Object.keys(filter) });
+    logger.info('Query parameters', { 
+      page: pageNum, 
+      limit: limitNum, 
+      skip, 
+      filterKeys: Object.keys(filter),
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      filter: JSON.stringify(filter)
+    });
     
     // Get total count for pagination
     const total = await Lead.countDocuments(filter);
@@ -137,13 +145,46 @@ router.get('/', authenticateToken, async (req, res) => {
       .skip(skip)
       .limit(limitNum)
       .lean();
+    
+    // Log sample lead dates for debugging
+    if (leads.length > 0) {
+      logger.info('Sample lead dates', { 
+        sampleLeads: leads.slice(0, 3).map(l => ({ 
+          id: l._id, 
+          dateCreate: l.dateCreate,
+          phone: l.phone 
+        }))
+      });
+    }
+    
+    // Also check if there are leads without date filter
+    if (req.query.dateFrom || req.query.dateTo) {
+      const filterWithoutDate = { ...filter };
+      delete filterWithoutDate.dateCreate;
+      const totalWithoutDate = await Lead.countDocuments(filterWithoutDate);
+      logger.info('Leads without date filter', { totalWithoutDate, totalWithDate: total });
+      
+      // Get sample leads to see their dates
+      const sampleLeads = await Lead.find(filterWithoutDate)
+        .sort({ dateCreate: -1 })
+        .limit(5)
+        .select('_id phone dateCreate')
+        .lean();
+      logger.info('Sample leads from DB', { 
+        samples: sampleLeads.map(l => ({ 
+          id: l._id, 
+          phone: l.phone,
+          dateCreate: l.dateCreate 
+        }))
+      });
+    }
 
     // Calculate pagination info
     const totalPages = Math.ceil(total / limitNum);
     const hasNextPage = pageNum < totalPages;
     const hasPrevPage = pageNum > 1;
 
-    logger.debug('Query results', { found: leads.length, total, pages: totalPages });
+    logger.info('Query results', { found: leads.length, total, pages: totalPages });
 
     res.json({
       success: true,

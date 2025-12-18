@@ -117,11 +117,12 @@ router.get('/today', authenticateToken, async (req, res) => {
   try {
     const { managerId } = req.query;
     
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    // Get today's date range
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
     
     const filter = {
       planDate: { $gte: startOfDay, $lte: endOfDay }
