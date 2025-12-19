@@ -110,7 +110,7 @@ router.get('/', authenticateToken, async (req, res) => {
     
     // Validate pagination parameters
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20)); // Limit max to 100
+    const limitNum = Math.min(10000, Math.max(1, parseInt(limit) || 20)); // Limit max to 10000 for stats
     
     // Add user info to query for role-based filtering
     const queryWithUser = {
@@ -133,11 +133,23 @@ router.get('/', authenticateToken, async (req, res) => {
       filterKeys: Object.keys(filter),
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo,
+      hasTeamLeadAssignedAt: req.query.hasTeamLeadAssignedAt,
+      teamLeadAssignedAtStart: req.query.teamLeadAssignedAtStart,
+      teamLeadAssignedAtEnd: req.query.teamLeadAssignedAtEnd,
       filter: JSON.stringify(filter)
     });
     
     // Get total count for pagination
     const total = await Lead.countDocuments(filter);
+    
+    // Log total count for debugging
+    if (req.query.hasTeamLeadAssignedAt) {
+      logger.info('TeamLeadAssignedAt filter results', {
+        total,
+        limit: limitNum,
+        hasFilter: !!filter.teamLeadAssignedAt
+      });
+    }
     
     // Get leads with pagination
     const leads = await Lead.find(filter)

@@ -137,13 +137,21 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     // Check if assigned is changing and new assignee is TeamLead or Manager
+    // AND lead status is UC_HSS56X
     if (updateData.assigned && updateData.assigned !== originalLead.assigned) {
       const Admin = require('../../models/Admin');
       const newAssignee = await Admin.findById(updateData.assigned);
       
-      if (newAssignee && (newAssignee.role === 'TeamLead' || newAssignee.role === 'Manager')) {
+      // Get current status (either from update or original lead)
+      const currentStatus = updateData.status || originalLead.status;
+      
+      if (newAssignee && 
+          (newAssignee.role === 'TeamLead' || newAssignee.role === 'Manager') &&
+          currentStatus === 'UC_HSS56X') {
         updateData.teamLeadAssignedAt = new Date();
-        console.log('✅ TeamLead/Manager assigned - teamLeadAssignedAt set for lead:', id);
+        console.log('✅ TeamLead/Manager assigned with UC_HSS56X status - teamLeadAssignedAt set for lead:', id);
+      } else if (currentStatus !== 'UC_HSS56X') {
+        console.log('⚠️ Lead status is not UC_HSS56X, teamLeadAssignedAt not set:', { id, status: currentStatus });
       }
     }
 
