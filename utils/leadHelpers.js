@@ -77,15 +77,35 @@ function createPhoneSearchConditions(search) {
  * Apply role-based filtering
  * @private
  */
-async function applyRoleBasedFilter(filter, { userRole, userId, userTeam }) {
+async function applyRoleBasedFilter(filter, { userRole, userId, userTeam, forStats }) {
   if (!userRole || !userId) return;
 
-  logger.debug('Applying role-based filter', { userRole, userId, userTeam });
+  logger.debug('Applying role-based filter', { userRole, userId, userTeam, forStats });
 
   // Team Fantom restriction: all members can only see their own leads
   if (userTeam === 'Team Fantom') {
-    filter.assigned = userId;
-    logger.debug('Applied Team Fantom restriction', { assigned: userId });
+    // For stats, Team Fantom sees only fantom leads (not just their own)
+    if (forStats) {
+      filter.utm_source = 'fantom';
+      logger.debug('Applied Team Fantom stats filter - only fantom leads');
+    } else {
+      filter.assigned = userId;
+      logger.debug('Applied Team Fantom restriction', { assigned: userId });
+    }
+    return;
+  }
+
+  // For stats: exclude fantom leads for all non-SuperAdmin users
+  if (forStats && userRole !== 'SuperAdmin') {
+    filter.utm_source = { $ne: 'fantom' };
+    logger.debug('Applied stats filter - excluding fantom utm_source');
+    return;
+  }
+
+  // Admin role: exclude leads with utm_source === "fantom"
+  if (userRole === 'Admin') {
+    filter.utm_source = { $ne: 'fantom' };
+    logger.debug('Applied Admin filter - excluding fantom utm_source');
     return;
   }
 
@@ -413,7 +433,8 @@ async function buildLeadsFilter(query) {
     statuses,
     hasTeamLeadAssignedAt,
     teamLeadAssignedAtStart,
-    teamLeadAssignedAtEnd
+    teamLeadAssignedAtEnd,
+    forStats
   } = query;
 
   const filter = {};
@@ -465,7 +486,7 @@ async function buildLeadsFilter(query) {
   }
 
   // Apply complex filters in order
-  await applyRoleBasedFilter(filter, { userRole, userId, userTeam });
+  await applyRoleBasedFilter(filter, { userRole, userId, userTeam, forStats });
   applyStatusFilter(filter, { status, statusMode, statuses });
   applyAssignedFilter(filter, assigned, userRole);
   applySearchFilter(filter, search);

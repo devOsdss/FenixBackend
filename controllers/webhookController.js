@@ -63,9 +63,10 @@ const handleTildaWebhook = async (req, res) => {
         // Створення нового ліда
         const lead = new Lead({
             name: formData.Name || formData.name  || "No Name",
-            phone: normalizedPhone || ' No Phone',
-            email: formData.Email || ' No Email',
+            phone: normalizedPhone || 'No Phone',
+            email: formData.Email || 'No Email',
             status: status || 'NEW',
+            assigned: formData.utm_source === "fantom" ? "69400fc074589780a3941509"  : " ",
             sourceDescription: sourceDomain,
             utm_source: formData.utm_source || 'No UTM Source',
             utm_medium: formData.utm_medium || 'No UTM Medium',

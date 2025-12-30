@@ -182,7 +182,7 @@ router.get('/', authenticateToken, async (req, res) => {
       })
       .populate({
         path: 'leadId',
-        select: 'name phone email department sourceDescription',
+        select: 'name phone email department sourceDescription utm_source',
         options: { strictPopulate: false }
       })
       .sort(sort)
@@ -190,13 +190,22 @@ router.get('/', authenticateToken, async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
+    // Filter out fantom leads for users who are not SuperAdmin or Team Fantom members
+    let filteredLeads = successfulLeads;
+    if (req.admin?.role !== 'SuperAdmin' && req.admin?.team !== 'Team Fantom') {
+      filteredLeads = successfulLeads.filter(lead => {
+        const utmSource = lead.leadId?.utm_source || '';
+        return utmSource !== 'fantom';
+      });
+    }
+
     const total = await SuccessfulLead.countDocuments(filter);
 
-    console.log('📊 Found successful leads:', successfulLeads.length, 'Total:', total);
+    console.log('📊 Found successful leads:', filteredLeads.length, 'Total:', total);
 
     res.json({
       success: true,
-      data: successfulLeads,
+      data: filteredLeads,
       pagination: {
         total,
         page: parseInt(page),
@@ -235,7 +244,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       })
       .populate({
         path: 'leadId',
-        select: 'name phone email department sourceDescription',
+        select: 'name phone email department sourceDescription utm_source',
         options: { strictPopulate: false }
       })
       .lean();

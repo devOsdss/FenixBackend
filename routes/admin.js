@@ -1,10 +1,10 @@
 const express = require('express');
 const Admin = require('../models/Admin');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
 // Get all admins with filtering
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticateToken, authorizeRoles(['SuperAdmin', 'TeamLead']), async (req, res) => {
   try {
     const { role, department, search, team } = req.query;
 
@@ -71,7 +71,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Create new admin
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   console.log('🎯🎯🎯 POST /api/admins called - NEW CODE RUNNING 🎯🎯🎯');
   console.log('📦 Request body:', req.body);
   
@@ -102,7 +102,7 @@ router.post('/', authenticateToken, async (req, res) => {
         console.log('📋 Current leaderIds:', team.leaderIds.length, 'managerIds:', team.managerIds.length);
         
         // Determine if admin should be leader or manager based on role
-        if (adminData.role === 'TeamLead' || adminData.role === 'Admin') {
+        if (adminData.role === 'TeamLead' || adminData.role === 'Admin' || adminData.role === 'SuperAdmin') {
           const alreadyExists = team.leaderIds.some(id => id.toString() === newAdmin._id.toString());
           if (!alreadyExists) {
             team.leaderIds.push(newAdmin._id);
@@ -157,7 +157,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // Update admin
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const admin = await Admin.findById(req.params.id);
     
@@ -201,7 +201,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         const newTeamDoc = await Team.findOne({ name: req.body.team });
         if (newTeamDoc) {
           const currentRole = req.body.role || admin.role;
-          if (currentRole === 'TeamLead' || currentRole === 'Admin') {
+          if (currentRole === 'TeamLead' || currentRole === 'Admin' || currentRole === 'SuperAdmin') {
             if (!newTeamDoc.leaderIds.some(id => id.toString() === admin._id.toString())) {
               newTeamDoc.leaderIds.push(admin._id);
             }
@@ -221,7 +221,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         teamDoc.leaderIds = teamDoc.leaderIds.filter(id => id.toString() !== admin._id.toString());
         teamDoc.managerIds = teamDoc.managerIds.filter(id => id.toString() !== admin._id.toString());
         
-        if (req.body.role === 'TeamLead' || req.body.role === 'Admin') {
+        if (req.body.role === 'TeamLead' || req.body.role === 'Admin' || req.body.role === 'SuperAdmin') {
           teamDoc.leaderIds.push(admin._id);
         } else if (req.body.role === 'Manager' || req.body.role === 'Reten') {
           teamDoc.managerIds.push(admin._id);
@@ -380,7 +380,7 @@ router.patch('/:id/responsible', authenticateToken, async (req, res) => {
 });
 
 // Delete admin
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const admin = await Admin.findById(req.params.id);
     

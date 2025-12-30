@@ -209,7 +209,7 @@ validateCreateLot              // Input validation
 authenticateToken
 
 // Role-based access control
-authorizeRoles(['Reten', 'Admin'])
+authorizeRoles(['Reten', ])
 ```
 
 ### **2. Input Validation**

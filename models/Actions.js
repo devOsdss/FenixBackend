@@ -27,7 +27,7 @@ const actionSchema = new mongoose.Schema({
   
   managerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin',
+    ref: 'Admin' || 'SuperAdmin',
     required: [true, 'ID менеджера обязателен']
   },
   

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Team = require('../models/Teams');
 const User = require('../models/User');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
 // GET /api/teams - Get all teams with filtering and population
 router.get('/', authenticateToken, async (req, res) => {
@@ -77,7 +77,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/teams - Create new team
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const { name, leaderIds = [], managerIds = [] } = req.body;
     
@@ -140,7 +140,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/teams/:id - Update team
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const { name, leaderIds, managerIds } = req.body;
     
@@ -257,7 +257,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/teams/:id - Delete team
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
     
@@ -296,7 +296,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/teams/:id/leaders - Add leader to team
-router.post('/:id/leaders', authenticateToken, async (req, res) => {
+router.post('/:id/leaders', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const { userId } = req.body;
     
@@ -338,7 +338,7 @@ router.post('/:id/leaders', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/teams/:id/leaders/:userId - Remove leader from team
-router.delete('/:id/leaders/:userId', authenticateToken, async (req, res) => {
+router.delete('/:id/leaders/:userId', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
     if (!team) {
@@ -371,7 +371,7 @@ router.delete('/:id/leaders/:userId', authenticateToken, async (req, res) => {
 });
 
 // POST /api/teams/:id/managers - Add manager to team
-router.post('/:id/managers', authenticateToken, async (req, res) => {
+router.post('/:id/managers', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const { userId } = req.body;
     
@@ -413,7 +413,7 @@ router.post('/:id/managers', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/teams/:id/managers/:userId - Remove manager from team
-router.delete('/:id/managers/:userId', authenticateToken, async (req, res) => {
+router.delete('/:id/managers/:userId', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
     if (!team) {
@@ -469,7 +469,7 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
 });
 
 // POST /api/teams/bulk - Bulk operations
-router.post('/bulk', authenticateToken, async (req, res) => {
+router.post('/bulk', authenticateToken, authorizeRoles(['SuperAdmin']), async (req, res) => {
   try {
     const { operation, ids, data } = req.body;
     

@@ -621,9 +621,9 @@ class LotController {
       }
 
       // ==================== CHECK ACCESS ====================
-      // Only Admin and TeamLead can update payouts
+      // Only Admin, SuperAdmin, and Reten can update payouts
 
-      if (adminRole !== 'Admin' && adminRole !== 'Reten') {
+      if (adminRole !== 'Admin' && adminRole !== 'Reten' && adminRole !== 'SuperAdmin') {
         await session.abortTransaction();
         return res.status(403).json({
           success: false,
@@ -739,7 +739,7 @@ class LotController {
       }
 
       // Check access (only Admin can delete)
-      if (adminRole !== 'Admin') {
+      if (adminRole !== 'Admin' || adminRole !== 'SuperAdmin') {
         await session.abortTransaction();
         return res.status(403).json({
           success: false,
@@ -798,7 +798,7 @@ class LotController {
 
       let stats;
 
-      if (team && (adminRole === 'Admin' || adminRole === 'TeamLead')) {
+      if (team && (adminRole === 'Admin' || adminRole === 'TeamLead' || adminRole === 'SuperAdmin')) {
         stats = await Lot.getTeamStats(team, startDate, endDate);
       } else {
         stats = await Lot.getOverallStats(startDate, endDate);

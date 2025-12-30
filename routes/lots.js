@@ -28,13 +28,13 @@ router.use(authenticateToken);
 /**
  * @route   POST /api/lots
  * @desc    Create a new LOT
- * @access  Reten, Admin
+ * @access  Reten, Admin, SuperAdmin
  * @body    { leadId, lotName, amount, lotDate }
  * @returns { success, message, data }
  */
 router.post(
   '/',
-  authorizeRoles(['Reten', 'Admin']),
+  authorizeRoles(['Reten', 'Admin', 'SuperAdmin']),
   LotController.createLot
 );
 
@@ -64,13 +64,13 @@ router.get(
 /**
  * @route   GET /api/lots/stats
  * @desc    Get LOT statistics
- * @access  TeamLead, Admin
+ * @access  TeamLead, Admin, SuperAdmin
  * @query   { startDate, endDate, team }
  * @returns { success, data }
  */
 router.get(
   '/stats',
-  authorizeRoles(['Reten', 'Admin']),
+  authorizeRoles(['Reten', 'Admin', 'SuperAdmin']),
   LotController.getLotStats
 );
 
@@ -89,41 +89,41 @@ router.get(
 /**
  * @route   PATCH /api/lots/:id/amount
  * @desc    Update LOT amount
- * @access  Reten, Admin (own LOTs only for Reten)
+ * @access  Reten, Admin, SuperAdmin (own LOTs only for Reten)
  * @param   id - LOT ID
  * @body    { amount, reason }
  * @returns { success, message, data }
  */
 router.patch(
   '/:id/amount',
-  authorizeRoles(['Reten', 'Admin']),
+  authorizeRoles(['Reten', 'Admin', 'SuperAdmin']),
   LotController.updateLotAmount
 );
 
 /**
  * @route   PATCH /api/lots/:id/payout
  * @desc    Update LOT payout amount and isPaid status
- * @access  TeamLead, Admin
+ * @access  TeamLead, Admin, SuperAdmin
  * @param   id - LOT ID
  * @body    { payoutAmount, isPaid }
  * @returns { success, message, data }
  */
 router.patch(
   '/:id/payout',
-  authorizeRoles(['Reten', 'Admin']),
+  authorizeRoles(['Reten', 'Admin', 'SuperAdmin']),
   LotController.updateLotPayout
 );
 
 /**
  * @route   DELETE /api/lots/:id
  * @desc    Delete LOT (soft delete)
- * @access  Admin only
+ * @access  Admin, SuperAdmin only
  * @param   id - LOT ID
  * @returns { success, message }
  */
 router.delete(
   '/:id',
-  authorizeRoles(['Admin']),
+  authorizeRoles(['Admin', 'SuperAdmin']),
   LotController.deleteLot
 );
 
