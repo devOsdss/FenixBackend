@@ -4,7 +4,7 @@ const router = express.Router();
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
 // Get all admins with filtering
-router.get('/', authenticateToken, authorizeRoles(['SuperAdmin', 'TeamLead']), async (req, res) => {
+router.get('/', authenticateToken, authorizeRoles(['SuperAdmin', 'TeamLead', 'Admin', 'Manager', 'Reten']), async (req, res) => {
   try {
     const { role, department, search, team } = req.query;
 
