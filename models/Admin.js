@@ -49,6 +49,11 @@ const adminSchema = new mongoose.Schema({
   team: {
     type: String,
     default: null
+  },
+  
+  avatar: {
+    type: String,
+    default: null
   }
 }, {
   collection: 'admins', // Explicitly set collection name
@@ -128,7 +133,8 @@ adminSchema.methods.getSafeData = function() {
     responsible: this.responsible,
     department: this.department,
     bitrixId: this.bitrixId,
-    team: this.team
+    team: this.team,
+    avatar: this.avatar
   };
 };
 

@@ -422,6 +422,7 @@ async function buildLeadsFilter(query) {
     hidden,
     department,
     team,
+    teams,
     sourceDescription,
     utm_source,
     dateFrom,
@@ -485,13 +486,22 @@ async function buildLeadsFilter(query) {
     }
   }
 
+  // Parse teams parameter (comma-separated) or use single team
+  let teamFilter = team;
+  if (teams) {
+    const teamArray = teams.split(',').map(t => t.trim()).filter(Boolean);
+    if (teamArray.length > 0) {
+      teamFilter = teamArray;
+    }
+  }
+
   // Apply complex filters in order
   await applyRoleBasedFilter(filter, { userRole, userId, userTeam, forStats });
   applyStatusFilter(filter, { status, statusMode, statuses });
   applyAssignedFilter(filter, assigned, userRole);
   applySearchFilter(filter, search);
   applySourceFilter(filter, sourceDescription);
-  await applyTeamFilter(filter, team);
+  await applyTeamFilter(filter, teamFilter);
   applyDateFilter(filter, { dateFrom, dateTo });
 
   logger.debug('Built filter object', { filterKeys: Object.keys(filter) });

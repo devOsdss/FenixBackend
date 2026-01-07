@@ -100,6 +100,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const { 
       assigned, 
       team,
+      teams,
       sortBy = 'closeDate', 
       sortOrder = 'desc',
       page = 1,
@@ -132,7 +133,13 @@ router.get('/', authenticateToken, async (req, res) => {
         filter.assigned = assigned;
       }
       
-      if (team) {
+      // Support multiple teams (comma-separated) or single team
+      if (teams) {
+        const teamArray = teams.split(',').map(t => t.trim()).filter(Boolean);
+        if (teamArray.length > 0) {
+          filter.team = teamArray.length === 1 ? teamArray[0] : { $in: teamArray };
+        }
+      } else if (team) {
         filter.team = team;
       }
     }

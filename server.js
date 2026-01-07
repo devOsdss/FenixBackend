@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from uploads directory
-app.use('/uploads', express.static('public/uploads'));
+app.use('/uploads', express.static('uploads'));
 
 // MongoDB Connection
 const connectDB = async () => {

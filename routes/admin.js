@@ -457,4 +457,136 @@ router.get('/department/:department', authenticateToken, async (req, res) => {
   }
 });
 
+// Upload avatar
+router.post('/:id/avatar', authenticateToken, async (req, res) => {
+  try {
+    const multer = require('multer');
+    const path = require('path');
+    const fs = require('fs');
+    
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(__dirname, '../uploads/avatars');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    
+    // Configure multer for avatar upload
+    const storage = multer.diskStorage({
+      destination: (req, file, cb) => {
+        cb(null, uploadsDir);
+      },
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, req.params.id + '-' + uniqueSuffix + path.extname(file.originalname));
+      }
+    });
+    
+    const upload = multer({
+      storage: storage,
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+      fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (extname && mimetype) {
+          return cb(null, true);
+        }
+        cb(new Error('Только изображения разрешены'));
+      }
+    }).single('avatar');
+    
+    upload(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message: err.message || 'Ошибка при загрузке файла'
+        });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Файл не был загружен'
+        });
+      }
+      
+      const admin = await Admin.findById(req.params.id);
+      
+      if (!admin) {
+        // Delete uploaded file if admin not found
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({
+          success: false,
+          message: 'Администратор не найден'
+        });
+      }
+      
+      // Delete old avatar if exists
+      if (admin.avatar) {
+        const oldAvatarPath = path.join(__dirname, '..', admin.avatar);
+        if (fs.existsSync(oldAvatarPath)) {
+          fs.unlinkSync(oldAvatarPath);
+        }
+      }
+      
+      // Save new avatar path
+      admin.avatar = `/uploads/avatars/${req.file.filename}`;
+      await admin.save();
+      
+      res.json({
+        success: true,
+        message: 'Аватар успешно загружен',
+        data: admin.getSafeData()
+      });
+    });
+  } catch (error) {
+    console.error('Upload avatar error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Ошибка при загрузке аватара'
+    });
+  }
+});
+
+// Delete avatar
+router.delete('/:id/avatar', authenticateToken, async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.params.id);
+    
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Администратор не найден'
+      });
+    }
+    
+    // Delete avatar file if exists
+    if (admin.avatar) {
+      const fs = require('fs');
+      const path = require('path');
+      const avatarPath = path.join(__dirname, '..', admin.avatar);
+      
+      if (fs.existsSync(avatarPath)) {
+        fs.unlinkSync(avatarPath);
+      }
+      
+      admin.avatar = undefined;
+      await admin.save();
+    }
+    
+    res.json({
+      success: true,
+      message: 'Аватар успешно удален',
+      data: admin.getSafeData()
+    });
+  } catch (error) {
+    console.error('Delete avatar error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Ошибка при удалении аватара'
+    });
+  }
+});
+
 module.exports = router;
